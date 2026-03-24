@@ -6,7 +6,7 @@ from config import OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def _call_with_backoff(messages, model="gpt-4.1-mini", max_retries=3):
+def _call_with_backoff(messages, model="gpt-4o-mini", max_retries=3):
     delay = 3
 
     for _ in range(max_retries):
@@ -49,15 +49,15 @@ Ignore:
 Text:
 {text}
 
-Return JSON list:
+Return JSON list only, no explanation:
 
 [
   {{
     "airport": "...",
     "signal": "...",
-    "type": "infrastructure/funding/operations/consultant/regulatory",
-    "stage": "idea/planning/funding/consultant/tender",
-    "confidence": 0-100,
+    "type": "infrastructure/funding/operations/consultant/regulatory/other",
+    "stage": "idea/planning/funding/consultant/tender/unknown",
+    "confidence": 0,
     "relevant": true
   }}
 ]
@@ -86,10 +86,11 @@ Rules:
 - Focus before tender stage
 - Explain why this matters for airfield lighting
 
-Return JSON:
+Return JSON only, no explanation:
+
 {{
-  "opportunity": true/false,
-  "stage": "idea/planning/funding/consultant/tender",
+  "opportunity": true,
+  "stage": "idea/planning/funding/consultant/tender/unknown",
   "insight": "...",
   "action": "..."
 }}
