@@ -4,8 +4,7 @@ from config import OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def extract_signals(text):
-
+def extract_signals(text: str) -> str:
     prompt = f"""
 You are an aviation intelligence analyst.
 
@@ -43,14 +42,13 @@ Return JSON list:
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": prompt}],
     )
 
     return response.choices[0].message.content
 
 
-def synthesize(signals_text):
-
+def synthesize(signals_text: str) -> str:
     prompt = f"""
 You are detecting early-stage airport investment opportunities.
 
@@ -75,7 +73,7 @@ Return JSON:
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": prompt}],
     )
 
     return response.choices[0].message.content
