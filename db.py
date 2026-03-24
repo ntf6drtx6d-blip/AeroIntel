@@ -49,9 +49,22 @@ def init_db():
         discovered_at TEXT
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS airport_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        airport_name TEXT,
+        country TEXT,
+        source_url TEXT,
+        municipality TEXT,
+        regional_actor TEXT,
+        mining_company TEXT,
+        confidence INTEGER,
+        created_at TEXT
+    )
+    """)
     conn.commit()
 
-    # Migrations for older DBs
     ensure_column("discovered_pages", "page_category", "TEXT", "'other'")
     ensure_column("discovered_pages", "status", "TEXT", "'new'")
     ensure_column("discovered_pages", "discovered_at", "TEXT")
@@ -120,6 +133,27 @@ def save_entity(record):
     conn.commit()
 
 
+def save_airport_profile(record):
+    cursor.execute("""
+    INSERT INTO airport_profiles (
+        airport_name, country, source_url,
+        municipality, regional_actor, mining_company,
+        confidence, created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        record["airport_name"],
+        record["country"],
+        record["source_url"],
+        record["municipality"],
+        record["regional_actor"],
+        record["mining_company"],
+        record["confidence"],
+        str(datetime.datetime.now()),
+    ))
+    conn.commit()
+
+
 def update_page_status(page_url, status):
     cursor.execute(
         "UPDATE discovered_pages SET status = ? WHERE page_url = ?",
@@ -164,7 +198,27 @@ def get_entities(country=None):
     return cursor.fetchall()
 
 
+def get_airport_profiles(country=None):
+    if country:
+        cursor.execute("""
+            SELECT airport_name, country, municipality,
+                   regional_actor, mining_company, source_url
+            FROM airport_profiles
+            WHERE country = ?
+            ORDER BY created_at DESC
+        """, (country,))
+    else:
+        cursor.execute("""
+            SELECT airport_name, country, municipality,
+                   regional_actor, mining_company, source_url
+            FROM airport_profiles
+            ORDER BY created_at DESC
+        """)
+    return cursor.fetchall()
+
+
 def clear_pages():
     cursor.execute("DELETE FROM discovered_pages")
     cursor.execute("DELETE FROM discovered_entities")
+    cursor.execute("DELETE FROM airport_profiles")
     conn.commit()
