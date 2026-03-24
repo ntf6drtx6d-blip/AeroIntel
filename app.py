@@ -16,7 +16,7 @@ col1, col2 = st.columns([1, 1])
 with col1:
     if st.button("Fetch new signals"):
         with st.spinner("Fetching signals..."):
-            added, skipped, errors, raw_results, error_logs = fetch_news()
+            added, skipped, errors, raw_results, error_logs, skip_logs = fetch_news()
             cleanup_old()
 
         st.success(f"Done. Added: {added}, skipped: {skipped}, errors: {errors}")
@@ -29,6 +29,13 @@ with col1:
                     st.markdown(f"**Title:** {item['title']}")
                     st.write(item["source"])
                     st.json(item["ai_output"])
+
+        with st.expander("Skip logs"):
+            if not skip_logs:
+                st.write("No skips")
+            else:
+                for item in skip_logs:
+                    st.json(item)
 
         with st.expander("Error logs"):
             if not error_logs:
