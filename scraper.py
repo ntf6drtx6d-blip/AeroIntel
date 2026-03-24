@@ -8,6 +8,12 @@ from db import save_signal, signal_exists
 
 
 def normalize_confidence(value):
+    """
+    Accept both:
+    - 0.0 to 1.0
+    - 0 to 100
+    Return normalized 0-100 integer
+    """
     if value is None:
         return 0
 
@@ -46,14 +52,12 @@ def fetch_news():
             title = getattr(entry, "title", "")
             summary = getattr(entry, "summary", "")
             link = getattr(entry, "link", "")
-
             text = f"{title} {summary}".strip()
 
             if not text:
                 skipped += 1
                 continue
 
-            # ---- AI CALL ----
             result = extract_signals(text)
 
             if result is None:
@@ -61,11 +65,10 @@ def fetch_news():
                 error_logs.append({
                     "stage": "ai_call",
                     "title": title,
-                    "error": "AI returned None (likely rate limit or API issue)"
+                    "error": "AI returned None (likely rate limit, quota, or API issue)"
                 })
                 continue
 
-            # ---- JSON PARSE ----
             try:
                 data_list = json.loads(result)
             except Exception as e:
@@ -94,7 +97,6 @@ def fetch_news():
                 "ai_output": data_list
             })
 
-            # ---- PROCESS SIGNALS ----
             for d in data_list:
                 try:
                     if not isinstance(d, dict):
