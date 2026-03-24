@@ -29,41 +29,47 @@ def extract_signals(text: str):
     prompt = f"""
 You are an aviation intelligence analyst.
 
-Analyze text from news and extract airport-related signals.
+Analyze this text and extract ONLY airport project signals that could matter for airfield lighting.
 
-Focus on:
-- runway works
-- infrastructure
-- funding
-- consultants
+Relevant examples:
+- runway rehabilitation
+- runway extension
+- taxiway construction
+- airport master plan
 - night operations
-- safety upgrades
+- safety upgrade
+- airport infrastructure funding
+- consultant appointment
+- airside modernization
 
-Ignore:
-- terminals
-- restaurants
+Not relevant:
+- terminal expansion only
 - parking
+- restaurants
 - retail
+- immigration raids
+- security incidents
+- airline passenger issues
+- commercial real estate
 - passenger comfort upgrades
 
 Text:
 {text}
 
-Return JSON list only, no explanation.
-
 Rules:
-- confidence must be an INTEGER from 0 to 100
-- stage must be one of: idea, planning, funding, consultant, tender, unknown
-- type must be one of: infrastructure, funding, operations, consultant, regulatory, other
+- Return ONLY valid JSON
+- Do NOT use markdown
+- Do NOT use ```json fences
+- If nothing relevant is found, return []
 
-Format:
+Return format:
 [
   {{
-    "airport": "...",
-    "signal": "...",
-    "type": "funding",
-    "stage": "funding",
-    "confidence": 90,
+    "airport": "string",
+    "signal": "string",
+    "type": "infrastructure/funding/operations/consultant/regulatory/other",
+    "stage": "idea/planning/funding/consultant/tender/unknown",
+    "confidence": 0,
     "relevant": true
   }}
 ]
@@ -91,14 +97,16 @@ Rules:
 - Ignore isolated weak information
 - Focus before tender stage
 - Explain why this matters for airfield lighting
+- Return ONLY valid JSON
+- Do NOT use markdown
+- Do NOT use ```json fences
 
-Return JSON only, no explanation:
-
+Return format:
 {{
   "opportunity": true,
   "stage": "idea/planning/funding/consultant/tender/unknown",
-  "insight": "...",
-  "action": "..."
+  "insight": "string",
+  "action": "string"
 }}
 """
 
