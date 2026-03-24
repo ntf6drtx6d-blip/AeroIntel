@@ -1,28 +1,50 @@
-import os
-import streamlit as st
+REQUEST_TIMEOUT_SECONDS = 20
+MAX_LINKS_PER_SEED_PAGE = 120
+MAX_PAGES_PER_DOMAIN = 25
 
-
-def get_openai_api_key():
-    if "OPENAI_API_KEY" in st.secrets:
-        return st.secrets["OPENAI_API_KEY"]
-
-    value = os.getenv("OPENAI_API_KEY")
-    if value:
-        return value
-
-    raise RuntimeError("OPENAI_API_KEY not found in Streamlit secrets or environment variables.")
-
-
-OPENAI_API_KEY = get_openai_api_key()
-
-TARGET_COUNTRIES = [
-    "Brazil",
-    "Thailand",
-    "Colombia",
-    "Mexico",
-    "Australia",
-    "Jordan",
+RELEVANT_KEYWORDS = [
+    "airport",
+    "airports",
+    "aerodrome",
+    "aerodromes",
+    "aviation",
+    "civil aviation",
+    "runway",
+    "runways",
+    "airfield",
+    "infrastructure",
+    "modernization",
+    "rehabilitation",
+    "operations",
+    "night operations",
+    "safety",
+    "master plan",
+    "procurement",
+    "tender",
+    "projects",
+    "project",
+    "expansion",
+    "operator",
+    "operators",
+    "regional airport",
+    "municipal airport",
+    "airport development",
+    "airport upgrade",
 ]
 
-MAX_SEARCH_RESULTS_PER_QUERY = 8
-MAX_QUERIES_PER_COUNTRY = 8
+NEGATIVE_KEYWORDS = [
+    "tourism",
+    "travel guide",
+    "trip",
+    "vacation",
+    "hotel",
+    "restaurant",
+    "shopping",
+    "retail",
+    "visa",
+    "tripadvisor",
+    "booking",
+    "wikipedia",
+    "culture",
+    "must visit",
+]
