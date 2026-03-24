@@ -17,7 +17,20 @@ def init_db():
         page_domain TEXT,
         relevance_score INTEGER,
         reason TEXT,
+        page_category TEXT,
         status TEXT,
+        discovered_at TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS discovered_entities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        country TEXT,
+        source_url TEXT,
+        entity_name TEXT,
+        entity_type TEXT,
+        rationale TEXT,
         discovered_at TEXT
     )
     """)
@@ -34,9 +47,9 @@ def save_page(record):
         """
         INSERT OR IGNORE INTO discovered_pages (
             country, seed_name, seed_type, page_title, page_url,
-            page_domain, relevance_score, reason, status, discovered_at
+            page_domain, relevance_score, reason, page_category, status, discovered_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             record.get("country"),
@@ -47,7 +60,28 @@ def save_page(record):
             record.get("page_domain"),
             record.get("relevance_score"),
             record.get("reason"),
+            record.get("page_category"),
             record.get("status", "new"),
+            str(datetime.datetime.now()),
+        ),
+    )
+    conn.commit()
+
+
+def save_entity(record):
+    cursor.execute(
+        """
+        INSERT INTO discovered_entities (
+            country, source_url, entity_name, entity_type, rationale, discovered_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.get("country"),
+            record.get("source_url"),
+            record.get("entity_name"),
+            record.get("entity_type"),
+            record.get("rationale"),
             str(datetime.datetime.now()),
         ),
     )
@@ -66,7 +100,7 @@ def get_pages(country=None):
     if country:
         cursor.execute("""
             SELECT country, seed_name, seed_type, page_title, page_url,
-                   page_domain, relevance_score, reason, status, discovered_at
+                   page_domain, relevance_score, reason, page_category, status, discovered_at
             FROM discovered_pages
             WHERE country = ?
             ORDER BY relevance_score DESC, discovered_at DESC
@@ -74,13 +108,31 @@ def get_pages(country=None):
     else:
         cursor.execute("""
             SELECT country, seed_name, seed_type, page_title, page_url,
-                   page_domain, relevance_score, reason, status, discovered_at
+                   page_domain, relevance_score, reason, page_category, status, discovered_at
             FROM discovered_pages
             ORDER BY relevance_score DESC, discovered_at DESC
         """)
     return cursor.fetchall()
 
 
+def get_entities(country=None):
+    if country:
+        cursor.execute("""
+            SELECT country, source_url, entity_name, entity_type, rationale, discovered_at
+            FROM discovered_entities
+            WHERE country = ?
+            ORDER BY discovered_at DESC
+        """, (country,))
+    else:
+        cursor.execute("""
+            SELECT country, source_url, entity_name, entity_type, rationale, discovered_at
+            FROM discovered_entities
+            ORDER BY discovered_at DESC
+        """)
+    return cursor.fetchall()
+
+
 def clear_pages():
     cursor.execute("DELETE FROM discovered_pages")
+    cursor.execute("DELETE FROM discovered_entities")
     conn.commit()
