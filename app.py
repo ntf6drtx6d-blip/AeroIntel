@@ -6,44 +6,33 @@ from radar import generate_opportunities
 from config import FETCH_INTERVAL_MINUTES
 
 init_db()
-
 st.set_page_config(layout="wide")
+st.title("🧠 AeroIntel")
 
-st.title("🧠 Airport Opportunity Radar (LIVE)")
+if "last_fetch_ts" not in st.session_state:
+    st.session_state.last_fetch_ts = 0.0
 
-# -------------------------
-# AUTO ENGINE
-# -------------------------
-if "last_run" not in st.session_state:
-    st.session_state.last_run = 0
+now = time.time()
+interval_seconds = FETCH_INTERVAL_MINUTES * 60
+should_fetch = (now - st.session_state.last_fetch_ts) >= interval_seconds
 
-current_time = time.time()
-interval = FETCH_INTERVAL_MINUTES * 60
-
-if current_time - st.session_state.last_run > interval:
-    with st.spinner("Updating signals..."):
+if should_fetch:
+    with st.spinner("Fetching new signals..."):
         fetch_news()
         cleanup_old()
-        st.session_state.last_run = current_time
+        st.session_state.last_fetch_ts = now
+        st.success("Signals updated")
 
-# -------------------------
-# UI
-# -------------------------
-st.subheader("🔥 Top Opportunities")
-
+st.subheader("Top Opportunities")
 opps = generate_opportunities()
 
 if not opps:
-    st.info("No strong opportunities yet. Let it run...")
+    st.info("No strong opportunities yet.")
 
-top = opps[:5]
-
-for opp in top:
+for opp in opps[:5]:
     st.markdown(f"### ✈️ {opp['airport']}")
     st.write(f"Stage: {opp['stage']}")
-
     st.write(opp["insight"])
-
     st.write("👉 Action:")
     st.write(opp["action"])
 
@@ -52,8 +41,6 @@ for opp in top:
             st.write(f"- {s['signal']}")
             st.write(s["source"])
 
-# -------------------------
-# AUTO REFRESH
-# -------------------------
-time.sleep(60)
-st.rerun()
+st.caption(
+    f"Last fetch: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state.last_fetch_ts)) if st.session_state.last_fetch_ts else 'not yet'}"
+)
