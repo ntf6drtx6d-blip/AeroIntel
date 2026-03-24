@@ -1,4 +1,4 @@
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urlunparse
 import re
 
 
@@ -37,39 +37,39 @@ def is_probably_html_url(url: str) -> bool:
     return not any(lowered.endswith(s) for s in blocked_suffixes)
 
 
-def score_page(title: str, url: str, body_text: str, relevant_keywords: list[str], negative_keywords: list[str]):
-    haystack = " ".join([title or "", url or "", body_text or ""]).lower()
+def normalize_url(url: str) -> str:
+    try:
+        parsed = urlparse(url)
+        cleaned = parsed._replace(fragment="")
+        return urlunparse(cleaned)
+    except Exception:
+        return url
 
-    score = 0
-    matched_positive = []
-    matched_negative = []
 
-    for kw in relevant_keywords:
-        if kw.lower() in haystack:
-            score += 12
-            matched_positive.append(kw)
+def looks_like_junk_url(url: str) -> bool:
+    if not url:
+        return True
 
-    for kw in negative_keywords:
-        if kw.lower() in haystack:
-            score -= 20
-            matched_negative.append(kw)
+    lowered = url.lower()
 
-    if "/airport" in (url or "").lower() or "/airports" in (url or "").lower():
-        score += 10
-    if "/aerodrome" in (url or "").lower():
-        score += 10
-    if "/procurement" in (url or "").lower() or "/tender" in (url or "").lower():
-        score += 10
-    if "/projects" in (url or "").lower():
-        score += 8
+    junk_parts = [
+        "#",
+        "search?",
+        "/search",
+        "/contact",
+        "/about",
+        "/offices",
+        "/departments",
+        "/transparency",
+        "/service_channels",
+        "/login",
+        "/signin",
+        "/signup",
+        "empregados",
+        "portal-footer",
+        "main-navigation",
+        "wrapper",
+        "govbr-busca-input",
+    ]
 
-    score = max(0, min(100, score))
-
-    if matched_positive:
-        reason = f"Positive matches: {', '.join(matched_positive[:6])}"
-    elif matched_negative:
-        reason = f"Negative matches: {', '.join(matched_negative[:6])}"
-    else:
-        reason = "No clear airport-project keywords found"
-
-    return score, reason
+    return any(part in lowered for part in junk_parts)
