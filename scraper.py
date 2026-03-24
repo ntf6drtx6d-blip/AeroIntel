@@ -20,12 +20,6 @@ IRRELEVANT_SIGNAL_KEYWORDS = [
 
 
 def normalize_confidence(value):
-    """
-    Accept both:
-    - 0.0 to 1.0
-    - 0 to 100
-    Return normalized 0-100 integer
-    """
     if value is None:
         return 0
 
@@ -63,7 +57,6 @@ def is_irrelevant_signal(signal_text):
         return True
 
     s = signal_text.lower()
-
     return any(keyword in s for keyword in IRRELEVANT_SIGNAL_KEYWORDS)
 
 
@@ -74,6 +67,7 @@ def fetch_news():
 
     raw_results = []
     error_logs = []
+    skip_logs = []
 
     for url in RSS_FEEDS:
         try:
@@ -95,6 +89,11 @@ def fetch_news():
 
             if not text:
                 skipped += 1
+                skip_logs.append({
+                    "stage": "empty_text",
+                    "title": title,
+                    "reason": "Entry text is empty"
+                })
                 continue
 
             result = extract_signals(text)
@@ -125,10 +124,10 @@ def fetch_news():
 
             if not isinstance(data_list, list):
                 skipped += 1
-                error_logs.append({
+                skip_logs.append({
                     "stage": "json_format",
                     "title": title,
-                    "error": "AI returned non-list JSON",
+                    "reason": "AI returned non-list JSON",
                     "raw": data_list
                 })
                 continue
@@ -139,31 +138,69 @@ def fetch_news():
                 "ai_output": data_list
             })
 
+            if len(data_list) == 0:
+                skipped += 1
+                skip_logs.append({
+                    "stage": "empty_ai_output",
+                    "title": title,
+                    "reason": "AI returned empty list []"
+                })
+                continue
+
             for d in data_list:
                 try:
                     if not isinstance(d, dict):
                         skipped += 1
+                        skip_logs.append({
+                            "stage": "invalid_signal_item",
+                            "title": title,
+                            "reason": "Signal item is not a dict",
+                            "data": d
+                        })
                         continue
 
                     signal_text = d.get("signal")
                     if not signal_text:
                         skipped += 1
+                        skip_logs.append({
+                            "stage": "missing_signal_text",
+                            "title": title,
+                            "reason": "Missing signal text",
+                            "data": d
+                        })
                         continue
 
                     if is_irrelevant_signal(signal_text):
                         skipped += 1
+                        skip_logs.append({
+                            "stage": "irrelevant_signal",
+                            "title": title,
+                            "reason": "Signal matched irrelevant keywords",
+                            "signal": signal_text
+                        })
                         continue
 
                     confidence = normalize_confidence(d.get("confidence"))
+                    d["confidence"] = confidence
 
                     if confidence < MIN_CONFIDENCE:
                         skipped += 1
+                        skip_logs.append({
+                            "stage": "low_confidence",
+                            "title": title,
+                            "reason": f"Confidence {confidence} below MIN_CONFIDENCE {MIN_CONFIDENCE}",
+                            "signal": signal_text
+                        })
                         continue
-
-                    d["confidence"] = confidence
 
                     if signal_exists(signal_text):
                         skipped += 1
+                        skip_logs.append({
+                            "stage": "duplicate_signal",
+                            "title": title,
+                            "reason": "Signal already exists in database",
+                            "signal": signal_text
+                        })
                         continue
 
                     save_signal(d, link)
@@ -180,4 +217,4 @@ def fetch_news():
 
             time.sleep(2)
 
-    return added, skipped, errors, raw_results, error_logs
+    return added, skipped, errors, raw_results, error_logs, skip_logs
