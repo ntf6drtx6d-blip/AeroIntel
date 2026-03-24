@@ -6,7 +6,7 @@ POSITIVE_URL_HINTS = [
     "airports",
     "aerodrome",
     "aerodromo",
-    "aerodromo",
+    "aeródromo",
     "airfield",
     "infrastructure",
     "project",
