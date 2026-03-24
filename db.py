@@ -5,6 +5,21 @@ conn = sqlite3.connect("aerointel_sources.db", check_same_thread=False)
 cursor = conn.cursor()
 
 
+def column_exists(table_name: str, column_name: str) -> bool:
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    cols = cursor.fetchall()
+    return any(col[1] == column_name for col in cols)
+
+
+def ensure_column(table_name: str, column_name: str, column_type: str, default_sql: str = ""):
+    if not column_exists(table_name, column_name):
+        sql = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
+        if default_sql:
+            sql += f" DEFAULT {default_sql}"
+        cursor.execute(sql)
+        conn.commit()
+
+
 def init_db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS discovered_pages (
@@ -36,6 +51,23 @@ def init_db():
     """)
     conn.commit()
 
+    # Migrations for older DBs
+    ensure_column("discovered_pages", "page_category", "TEXT", "'other'")
+    ensure_column("discovered_pages", "status", "TEXT", "'new'")
+    ensure_column("discovered_pages", "discovered_at", "TEXT")
+    ensure_column("discovered_pages", "reason", "TEXT")
+    ensure_column("discovered_pages", "relevance_score", "INTEGER", "0")
+    ensure_column("discovered_pages", "page_domain", "TEXT")
+    ensure_column("discovered_pages", "seed_name", "TEXT")
+    ensure_column("discovered_pages", "seed_type", "TEXT")
+
+    ensure_column("discovered_entities", "country", "TEXT")
+    ensure_column("discovered_entities", "source_url", "TEXT")
+    ensure_column("discovered_entities", "entity_name", "TEXT")
+    ensure_column("discovered_entities", "entity_type", "TEXT")
+    ensure_column("discovered_entities", "rationale", "TEXT")
+    ensure_column("discovered_entities", "discovered_at", "TEXT")
+
 
 def page_exists(page_url):
     cursor.execute("SELECT 1 FROM discovered_pages WHERE page_url = ?", (page_url,))
@@ -60,7 +92,7 @@ def save_page(record):
             record.get("page_domain"),
             record.get("relevance_score"),
             record.get("reason"),
-            record.get("page_category"),
+            record.get("page_category", "other"),
             record.get("status", "new"),
             str(datetime.datetime.now()),
         ),
