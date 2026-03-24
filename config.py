@@ -19,7 +19,7 @@ def get_openai_api_key():
 
 OPENAI_API_KEY = get_openai_api_key()
 
-FETCH_INTERVAL_MINUTES = 30
+FETCH_INTERVAL_MINUTES = 60
 
 RSS_FEEDS = [
     "https://news.google.com/rss/search?q=airport+master+plan",
