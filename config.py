@@ -1,6 +1,7 @@
 REQUEST_TIMEOUT_SECONDS = 20
-MAX_LINKS_PER_SEED_PAGE = 120
-MAX_PAGES_PER_DOMAIN = 25
+MAX_LINKS_PER_SEED_PAGE = 150
+MAX_PAGES_PER_DOMAIN = 40
+MIN_RELEVANCE_SCORE = 25
 
 RELEVANT_KEYWORDS = [
     "airport",
@@ -30,6 +31,19 @@ RELEVANT_KEYWORDS = [
     "municipal airport",
     "airport development",
     "airport upgrade",
+    "concession",
+    "concessions",
+    "works",
+    "obra",
+    "obras",
+    "pista",
+    "licitacao",
+    "licitación",
+    "licitacao",
+    "licitacoes",
+    "airstrip",
+    "aerodromo",
+    "aerodromo",
 ]
 
 NEGATIVE_KEYWORDS = [
@@ -47,4 +61,14 @@ NEGATIVE_KEYWORDS = [
     "wikipedia",
     "culture",
     "must visit",
+    "contact",
+    "about",
+    "transparency",
+    "search",
+    "login",
+    "employee",
+    "press office",
+    "service channels",
+    "departments",
+    "offices",
 ]
