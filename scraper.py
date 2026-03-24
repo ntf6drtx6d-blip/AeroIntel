@@ -10,7 +10,7 @@ def fetch_news():
     for url in RSS_FEEDS:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:5]:
+        for entry in feed.entries[:2]:
 
             text = entry.title + " " + entry.summary
 
