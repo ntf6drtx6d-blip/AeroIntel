@@ -2,14 +2,14 @@ import pandas as pd
 import streamlit as st
 
 from country_seeds import COUNTRY_SEEDS
-from db import init_db, get_pages, clear_pages, update_page_status
+from db import init_db, get_pages, get_entities, clear_pages, update_page_status
 from site_explorer import discover_pages_for_country
 
 init_db()
 
 st.set_page_config(layout="wide", page_title="AeroIntel")
 st.title("🧠 AeroIntel")
-st.caption("Seeded Source Discovery Mode — crawl official aviation institutions first.")
+st.caption("Regional Source Hunter — official seeds + page ranking + entity expansion")
 
 countries = list(COUNTRY_SEEDS.keys())
 selected_country = st.selectbox("Country", countries)
@@ -21,11 +21,13 @@ with st.expander("Seed institutions for selected country", expanded=False):
 col1, col2, col3 = st.columns([1, 1, 1])
 
 with col1:
-    if st.button("Discover pages from seed institutions"):
-        with st.spinner(f"Exploring seed domains for {selected_country}..."):
-            discovered, logs = discover_pages_for_country(selected_country)
+    if st.button("Discover pages and entities"):
+        with st.spinner(f"Exploring {selected_country}..."):
+            discovered, entities, logs = discover_pages_for_country(selected_country)
 
-        st.success(f"Discovered {len(discovered)} pages for {selected_country}")
+        st.success(
+            f"Discovered {len(discovered)} pages and {len(entities)} entities for {selected_country}"
+        )
 
         with st.expander("Discovery logs"):
             if not logs:
@@ -35,7 +37,7 @@ with col1:
                     st.json(item)
 
 with col2:
-    if st.button("Refresh table"):
+    if st.button("Refresh tables"):
         st.rerun()
 
 with col3:
@@ -62,6 +64,7 @@ else:
             "page_domain",
             "relevance_score",
             "reason",
+            "page_category",
             "status",
             "discovered_at",
         ],
@@ -79,8 +82,8 @@ else:
     for idx, row in top_df.iterrows():
         st.markdown(f"### {row['page_title']}")
         st.write(f"**Seed:** {row['seed_name']} | **Type:** {row['seed_type']}")
+        st.write(f"**Category:** {row['page_category']} | **Score:** {row['relevance_score']}")
         st.write(f"**Domain:** {row['page_domain']}")
-        st.write(f"**Score:** {row['relevance_score']}")
         st.write(f"**Why:** {row['reason']}")
         st.write(row["page_url"])
         st.write(f"**Status:** {row['status']}")
@@ -101,3 +104,30 @@ else:
             if st.button("Keep new", key=f"new_{selected_country}_{idx}"):
                 update_page_status(row["page_url"], "new")
                 st.rerun()
+
+st.subheader("Discovered entities")
+
+entity_rows = get_entities(selected_country)
+
+if not entity_rows:
+    st.info("No entities discovered yet.")
+else:
+    entity_df = pd.DataFrame(
+        entity_rows,
+        columns=[
+            "country",
+            "source_url",
+            "entity_name",
+            "entity_type",
+            "rationale",
+            "discovered_at",
+        ],
+    )
+    st.dataframe(entity_df, use_container_width=True)
+
+    st.subheader("Latest entities")
+    for _, row in entity_df.head(30).iterrows():
+        st.markdown(f"**{row['entity_name']}**")
+        st.write(f"Type: {row['entity_type']}")
+        st.write(f"Why: {row['rationale']}")
+        st.write(row["source_url"])
