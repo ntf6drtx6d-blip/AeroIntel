@@ -1,6 +1,6 @@
+import json
 import time
 from openai import OpenAI, RateLimitError
-
 from config import OPENAI_API_KEY
 
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -25,89 +25,62 @@ def _call_with_backoff(messages, model="gpt-4o-mini", max_retries=3):
     return None
 
 
-def extract_signals(text: str):
-    prompt = f"""
-You are an aviation intelligence analyst.
-
-Analyze this text and extract ONLY airport project signals that could matter for airfield lighting.
-
-Relevant examples:
-- runway rehabilitation
-- runway extension
-- taxiway construction
-- airport master plan
-- night operations
-- safety upgrade
-- airport infrastructure funding
-- consultant appointment
-- airside modernization
-
-Not relevant:
-- terminal expansion only
-- parking
-- restaurants
-- retail
-- immigration raids
-- security incidents
-- airline passenger issues
-- commercial real estate
-- passenger comfort upgrades
-
-Text:
-{text}
-
-Rules:
-- Return ONLY valid JSON
-- Do NOT use markdown
-- Do NOT use ```json fences
-- If nothing relevant is found, return []
-
-Return format:
-[
-  {{
-    "airport": "string",
-    "signal": "string",
-    "type": "infrastructure/funding/operations/consultant/regulatory/other",
-    "stage": "idea/planning/funding/consultant/tender/unknown",
-    "confidence": 0,
-    "relevant": true
-  }}
-]
-"""
-
-    response = _call_with_backoff(
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    if response is None:
+def clean_json_text(raw_text):
+    if raw_text is None:
         return None
 
-    return response.choices[0].message.content
+    text = raw_text.strip()
+
+    if text.startswith("```json"):
+        text = text[len("```json"):].strip()
+
+    if text.startswith("```"):
+        text = text[len("```"):].strip()
+
+    if text.endswith("```"):
+        text = text[:-3].strip()
+
+    return text
 
 
-def synthesize(signals_text: str):
+def classify_source(country: str, query: str, title: str, url: str, snippet: str = ""):
     prompt = f"""
-You are detecting early-stage airport investment opportunities.
+You are evaluating whether a discovered website/page is a valuable source for early airport project intelligence.
 
-Signals:
-{signals_text}
+Country: {country}
+Search query: {query}
+Title: {title}
+URL: {url}
+Snippet: {snippet}
 
-Rules:
-- Look for combined signals
-- Ignore isolated weak information
-- Focus before tender stage
-- Explain why this matters for airfield lighting
-- Return ONLY valid JSON
-- Do NOT use markdown
-- Do NOT use ```json fences
+Classify this result for airport opportunity intelligence.
 
-Return format:
+Prefer sources such as:
+- civil aviation authorities
+- ministries of transport/infrastructure
+- airport operator companies
+- municipal/state/provincial government pages about airports
+- procurement portals
+- engineering consultants active in aviation
+- serious aviation news sources
+
+Do NOT prefer:
+- airline booking pages
+- passenger tips
+- generic travel blogs
+- commercial retail pages
+- random airport info directories
+
+Return JSON only:
 {{
-  "opportunity": true,
-  "stage": "idea/planning/funding/consultant/tender/unknown",
-  "insight": "string",
-  "action": "string"
+  "source_type": "caa/ministry/airport_operator/municipality/procurement/consultant/news/other",
+  "relevance_score": 0,
+  "rationale": "short reason"
 }}
+
+Rules:
+- relevance_score must be integer 0-100
+- if doubtful, score lower
 """
 
     response = _call_with_backoff(
@@ -115,6 +88,19 @@ Return format:
     )
 
     if response is None:
-        return None
+        return {
+            "source_type": "other",
+            "relevance_score": 0,
+            "rationale": "AI classification failed",
+        }
 
-    return response.choices[0].message.content
+    text = clean_json_text(response.choices[0].message.content)
+
+    try:
+        return json.loads(text)
+    except Exception:
+        return {
+            "source_type": "other",
+            "relevance_score": 0,
+            "rationale": "Invalid AI JSON",
+        }
