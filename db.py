@@ -1,56 +1,74 @@
 import sqlite3
 import datetime
 
-conn = sqlite3.connect("signals.db", check_same_thread=False)
+conn = sqlite3.connect("aerointel.db", check_same_thread=False)
 cursor = conn.cursor()
 
 
 def init_db():
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS signals (
+    CREATE TABLE IF NOT EXISTS discovered_sources (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        airport TEXT,
-        signal TEXT,
-        type TEXT,
-        date TEXT,
-        source TEXT,
-        stage TEXT,
-        confidence INTEGER
+        country TEXT,
+        query TEXT,
+        title TEXT,
+        url TEXT,
+        domain TEXT,
+        source_type TEXT,
+        relevance_score INTEGER,
+        rationale TEXT,
+        discovered_at TEXT
     )
     """)
     conn.commit()
 
 
-def signal_exists(signal):
-    cursor.execute("SELECT 1 FROM signals WHERE signal = ?", (signal,))
+def source_exists(url):
+    cursor.execute("SELECT 1 FROM discovered_sources WHERE url = ?", (url,))
     return cursor.fetchone() is not None
 
 
-def save_signal(data, source):
+def save_source(record):
     cursor.execute(
         """
-        INSERT INTO signals (airport, signal, type, date, source, stage, confidence)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO discovered_sources (
+            country, query, title, url, domain, source_type,
+            relevance_score, rationale, discovered_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            data.get("airport"),
-            data.get("signal"),
-            data.get("type"),
+            record.get("country"),
+            record.get("query"),
+            record.get("title"),
+            record.get("url"),
+            record.get("domain"),
+            record.get("source_type"),
+            record.get("relevance_score"),
+            record.get("rationale"),
             str(datetime.datetime.now()),
-            source,
-            data.get("stage"),
-            data.get("confidence"),
         ),
     )
     conn.commit()
 
 
-def get_all_signals():
-    cursor.execute("SELECT airport, signal, source, type, stage FROM signals")
+def get_sources(country=None):
+    if country:
+        cursor.execute("""
+            SELECT country, query, title, url, domain, source_type, relevance_score, rationale, discovered_at
+            FROM discovered_sources
+            WHERE country = ?
+            ORDER BY relevance_score DESC, discovered_at DESC
+        """, (country,))
+    else:
+        cursor.execute("""
+            SELECT country, query, title, url, domain, source_type, relevance_score, rationale, discovered_at
+            FROM discovered_sources
+            ORDER BY relevance_score DESC, discovered_at DESC
+        """)
     return cursor.fetchall()
 
 
-def cleanup_old(days=14):
-    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
-    cursor.execute("DELETE FROM signals WHERE date < ?", (str(cutoff),))
+def clear_sources():
+    cursor.execute("DELETE FROM discovered_sources")
     conn.commit()
