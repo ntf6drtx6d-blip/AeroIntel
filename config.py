@@ -23,8 +23,5 @@ RSS_FEEDS = [
     "https://news.google.com/rss/search?q=airport+night+operations",
 ]
 
-# Keep load very low while testing
 MAX_ITEMS_PER_FEED = 1
-
-# Accept more signals for debugging/tuning
 MIN_CONFIDENCE = 30
