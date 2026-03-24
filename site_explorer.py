@@ -113,7 +113,7 @@ def discover_pages_for_country(country: str):
             continue
 
         try:
-            seed_title, seed_body = extract_page_title_and_text(html)
+            _, seed_body = extract_page_title_and_text(html)
             entities = extract_entities(seed_body)
             for ent in entities:
                 ent_record = {
