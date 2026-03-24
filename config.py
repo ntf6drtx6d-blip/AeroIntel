@@ -39,11 +39,10 @@ RELEVANT_KEYWORDS = [
     "pista",
     "licitacao",
     "licitación",
-    "licitacao",
     "licitacoes",
     "airstrip",
     "aerodromo",
-    "aerodromo",
+    "aeródromo",
 ]
 
 NEGATIVE_KEYWORDS = [
