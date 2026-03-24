@@ -1,7 +1,26 @@
-from openai import OpenAI
+import time
+from openai import OpenAI, RateLimitError
 from config import OPENAI_API_KEY
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+def _call_with_backoff(messages, model="gpt-4.1-mini", max_retries=5):
+    delay = 2
+    last_error = None
+
+    for _ in range(max_retries):
+        try:
+            return client.chat.completions.create(
+                model=model,
+                messages=messages,
+            )
+        except RateLimitError as e:
+            last_error = e
+            time.sleep(delay)
+            delay *= 2
+
+    raise last_error
 
 
 def extract_signals(text: str) -> str:
@@ -40,11 +59,9 @@ Return JSON list:
 ]
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}],
+    response = _call_with_backoff(
+        messages=[{"role": "user", "content": prompt}]
     )
-
     return response.choices[0].message.content
 
 
@@ -71,9 +88,7 @@ Return JSON:
 }}
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}],
+    response = _call_with_backoff(
+        messages=[{"role": "user", "content": prompt}]
     )
-
     return response.choices[0].message.content
