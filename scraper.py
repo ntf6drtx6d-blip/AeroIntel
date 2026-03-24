@@ -7,6 +7,18 @@ from ai_engine import extract_signals
 from db import save_signal, signal_exists
 
 
+IRRELEVANT_SIGNAL_KEYWORDS = [
+    "immigration",
+    "raid",
+    "passenger",
+    "restaurant",
+    "retail",
+    "parking",
+    "terminal only",
+    "security incident",
+]
+
+
 def normalize_confidence(value):
     """
     Accept both:
@@ -26,6 +38,33 @@ def normalize_confidence(value):
         return int(value * 100)
 
     return int(value)
+
+
+def clean_ai_json_text(raw_text):
+    if raw_text is None:
+        return None
+
+    text = raw_text.strip()
+
+    if text.startswith("```json"):
+        text = text[len("```json"):].strip()
+
+    if text.startswith("```"):
+        text = text[len("```"):].strip()
+
+    if text.endswith("```"):
+        text = text[:-3].strip()
+
+    return text
+
+
+def is_irrelevant_signal(signal_text):
+    if not signal_text:
+        return True
+
+    s = signal_text.lower()
+
+    return any(keyword in s for keyword in IRRELEVANT_SIGNAL_KEYWORDS)
 
 
 def fetch_news():
@@ -69,15 +108,18 @@ def fetch_news():
                 })
                 continue
 
+            cleaned_result = clean_ai_json_text(result)
+
             try:
-                data_list = json.loads(result)
+                data_list = json.loads(cleaned_result)
             except Exception as e:
                 errors += 1
                 error_logs.append({
                     "stage": "json_parse",
                     "title": title,
                     "error": str(e),
-                    "raw": result
+                    "raw": result,
+                    "cleaned_raw": cleaned_result
                 })
                 continue
 
@@ -105,6 +147,10 @@ def fetch_news():
 
                     signal_text = d.get("signal")
                     if not signal_text:
+                        skipped += 1
+                        continue
+
+                    if is_irrelevant_signal(signal_text):
                         skipped += 1
                         continue
 
