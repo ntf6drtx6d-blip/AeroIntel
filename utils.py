@@ -8,10 +8,15 @@ def normalize_airport(name):
         "airport",
         "international",
         "aeropuerto",
-        "aeroport"
+        "aeroport",
+        "airfield",
     ]
 
     for word in remove_words:
         name = name.replace(word, "")
 
-    return name.strip().title()
+    cleaned = " ".join(name.split()).strip()
+    if not cleaned:
+        return "Unknown"
+
+    return cleaned.title()
