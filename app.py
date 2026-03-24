@@ -2,8 +2,16 @@ import pandas as pd
 import streamlit as st
 
 from country_seeds import COUNTRY_SEEDS
-from db import init_db, get_pages, get_entities, clear_pages, update_page_status
+from db import (
+    init_db,
+    get_pages,
+    get_entities,
+    get_airport_profiles,
+    clear_pages,
+    update_page_status,
+)
 from site_explorer import discover_pages_for_country
+from airport_profile_builder import build_profiles_from_pages
 
 init_db()
 
@@ -52,6 +60,7 @@ rows = get_pages(selected_country)
 
 if not rows:
     st.info("No pages discovered yet.")
+    df = pd.DataFrame()
 else:
     df = pd.DataFrame(
         rows,
@@ -69,6 +78,56 @@ else:
             "discovered_at",
         ],
     )
+
+    action_col1, action_col2, action_col3 = st.columns([1, 1, 1])
+
+    with action_col1:
+        if st.button("Auto-approve strong pages"):
+            for _, row in df.iterrows():
+                if row["relevance_score"] >= 45 and row["page_category"] in [
+                    "projects_page",
+                    "airport_registry",
+                    "municipality_airport_page",
+                    "operator_page"
+                ]:
+                    update_page_status(row["page_url"], "approved")
+
+            st.success("Auto-approved strong pages")
+            st.rerun()
+
+    with action_col2:
+        if st.button("Reject junk pages"):
+            for _, row in df.iterrows():
+                if row["page_category"] == "junk" or row["relevance_score"] < 20:
+                    update_page_status(row["page_url"], "rejected")
+
+            st.success("Rejected junk pages")
+            st.rerun()
+
+    with action_col3:
+        if st.button("Build airport profiles"):
+            pages_list = df.to_dict("records")
+
+            entity_rows = get_entities(selected_country)
+            entities_list = [
+                {
+                    "country": e[0],
+                    "source_url": e[1],
+                    "entity_name": e[2],
+                    "entity_type": e[3],
+                    "rationale": e[4],
+                }
+                for e in entity_rows
+            ]
+
+            profiles = build_profiles_from_pages(
+                pages_list,
+                entities_list,
+                selected_country
+            )
+
+            st.success(f"Built {len(profiles)} airport profiles")
+            st.rerun()
 
     st.dataframe(df, use_container_width=True)
 
@@ -131,3 +190,17 @@ else:
         st.write(f"Type: {row['entity_type']}")
         st.write(f"Why: {row['rationale']}")
         st.write(row["source_url"])
+
+st.subheader("Airport Profiles")
+
+profiles = get_airport_profiles(selected_country)
+
+if not profiles:
+    st.info("No airport profiles yet.")
+else:
+    for p in profiles:
+        st.markdown(f"### ✈️ {p[0]}")
+        st.write(f"Municipality: {p[2]}")
+        st.write(f"Regional: {p[3]}")
+        st.write(f"Mining: {p[4]}")
+        st.write(p[5])
