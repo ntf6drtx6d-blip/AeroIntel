@@ -1,22 +1,23 @@
-def normalize_airport(name):
-    if not name:
-        return "Unknown"
+from urllib.parse import urlparse
 
-    name = name.lower()
 
-    remove_words = [
-        "airport",
-        "international",
-        "aeropuerto",
-        "aeroport",
-        "airfield",
-    ]
+def extract_domain(url: str) -> str:
+    try:
+        netloc = urlparse(url).netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        return netloc
+    except Exception:
+        return ""
 
-    for word in remove_words:
-        name = name.replace(word, "")
 
-    cleaned = " ".join(name.split()).strip()
-    if not cleaned:
-        return "Unknown"
-
-    return cleaned.title()
+def dedupe_by_url(items):
+    seen = set()
+    out = []
+    for item in items:
+        url = item.get("url", "")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        out.append(item)
+    return out
