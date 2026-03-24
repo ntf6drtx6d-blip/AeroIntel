@@ -1,33 +1,35 @@
 import time
 from openai import OpenAI, RateLimitError
+
 from config import OPENAI_API_KEY
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def _call_with_backoff(messages, model="gpt-4.1-mini", max_retries=5):
-    delay = 2
-    last_error = None
+def _call_with_backoff(messages, model="gpt-4.1-mini", max_retries=3):
+    delay = 3
 
     for _ in range(max_retries):
         try:
             return client.chat.completions.create(
                 model=model,
                 messages=messages,
+                temperature=0,
             )
-        except RateLimitError as e:
-            last_error = e
+        except RateLimitError:
             time.sleep(delay)
             delay *= 2
+        except Exception:
+            return None
 
-    raise last_error
+    return None
 
 
-def extract_signals(text: str) -> str:
+def extract_signals(text: str):
     prompt = f"""
 You are an aviation intelligence analyst.
 
-Analyze text from news or LinkedIn and extract airport-related signals.
+Analyze text from news and extract airport-related signals.
 
 Focus on:
 - runway works
@@ -37,10 +39,12 @@ Focus on:
 - night operations
 - safety upgrades
 
-IGNORE:
+Ignore:
 - terminals
 - restaurants
 - parking
+- retail
+- passenger comfort upgrades
 
 Text:
 {text}
@@ -62,10 +66,14 @@ Return JSON list:
     response = _call_with_backoff(
         messages=[{"role": "user", "content": prompt}]
     )
+
+    if response is None:
+        return None
+
     return response.choices[0].message.content
 
 
-def synthesize(signals_text: str) -> str:
+def synthesize(signals_text: str):
     prompt = f"""
 You are detecting early-stage airport investment opportunities.
 
@@ -73,11 +81,10 @@ Signals:
 {signals_text}
 
 Rules:
-- Look for COMBINED signals
-- Ignore weak or isolated info
-- Focus BEFORE tender stage
-
-Explain WHY this matters for airfield lighting.
+- Look for combined signals
+- Ignore isolated weak information
+- Focus before tender stage
+- Explain why this matters for airfield lighting
 
 Return JSON:
 {{
@@ -91,4 +98,8 @@ Return JSON:
     response = _call_with_backoff(
         messages=[{"role": "user", "content": prompt}]
     )
+
+    if response is None:
+        return None
+
     return response.choices[0].message.content
