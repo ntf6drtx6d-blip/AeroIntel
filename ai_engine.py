@@ -49,15 +49,21 @@ Ignore:
 Text:
 {text}
 
-Return JSON list only, no explanation:
+Return JSON list only, no explanation.
 
+Rules:
+- confidence must be an INTEGER from 0 to 100
+- stage must be one of: idea, planning, funding, consultant, tender, unknown
+- type must be one of: infrastructure, funding, operations, consultant, regulatory, other
+
+Format:
 [
   {{
     "airport": "...",
     "signal": "...",
-    "type": "infrastructure/funding/operations/consultant/regulatory/other",
-    "stage": "idea/planning/funding/consultant/tender/unknown",
-    "confidence": 0,
+    "type": "funding",
+    "stage": "funding",
+    "confidence": 90,
     "relevant": true
   }}
 ]
