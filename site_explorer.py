@@ -1,21 +1,24 @@
 import requests
 from bs4 import BeautifulSoup
 
-from config import REQUEST_TIMEOUT_SECONDS, MAX_LINKS_PER_SEED_PAGE, MAX_PAGES_PER_DOMAIN, RELEVANT_KEYWORDS, NEGATIVE_KEYWORDS
+from config import REQUEST_TIMEOUT_SECONDS, MAX_LINKS_PER_SEED_PAGE, MAX_PAGES_PER_DOMAIN, MIN_RELEVANCE_SCORE
 from utils import (
     extract_domain,
     is_same_domain,
     make_absolute_url,
     is_probably_html_url,
     normalize_whitespace,
-    score_page,
+    normalize_url,
+    looks_like_junk_url,
 )
-from db import save_page, page_exists
+from db import save_page, save_entity, page_exists
 from country_seeds import COUNTRY_SEEDS
+from page_ranker import score_page
+from entity_expander import extract_entities
 
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; AeroIntel/1.0; +https://example.com)"
+    "User-Agent": "Mozilla/5.0 (compatible; AeroIntel/1.0)"
 }
 
 
@@ -41,12 +44,14 @@ def parse_links(base_url: str, html: str):
         if not href:
             continue
 
-        absolute = make_absolute_url(base_url, href)
+        absolute = normalize_url(make_absolute_url(base_url, href))
         if not absolute.startswith("http"):
             continue
         if not is_probably_html_url(absolute):
             continue
         if not is_same_domain(base_url, absolute):
+            continue
+        if looks_like_junk_url(absolute):
             continue
 
         links.append({
@@ -69,17 +74,17 @@ def extract_page_title_and_text(html: str):
         title = normalize_whitespace(soup.title.string)
 
     body_text = normalize_whitespace(soup.get_text(" ", strip=True))
-    if len(body_text) > 4000:
-        body_text = body_text[:4000]
+    if len(body_text) > 6000:
+        body_text = body_text[:6000]
 
     return title, body_text
 
 
 def discover_pages_for_country(country: str):
     seeds = COUNTRY_SEEDS.get(country, [])
-
     discovered = []
     logs = []
+    discovered_entities = []
 
     for seed in seeds:
         seed_name = seed["name"]
@@ -106,6 +111,22 @@ def discover_pages_for_country(country: str):
                 "url": seed_url,
             })
             continue
+
+        try:
+            seed_title, seed_body = extract_page_title_and_text(html)
+            entities = extract_entities(seed_body)
+            for ent in entities:
+                ent_record = {
+                    "country": country,
+                    "source_url": seed_url,
+                    "entity_name": ent["entity_name"],
+                    "entity_type": ent["entity_type"],
+                    "rationale": ent["rationale"],
+                }
+                save_entity(ent_record)
+                discovered_entities.append(ent_record)
+        except Exception:
+            pass
 
         try:
             links = parse_links(seed_url, html)
@@ -138,12 +159,10 @@ def discover_pages_for_country(country: str):
 
             try:
                 page_title, body_text = extract_page_title_and_text(page_html)
-                score, reason = score_page(
+                score, reason, category = score_page(
                     title=page_title or link["text"],
                     url=page_url,
                     body_text=body_text,
-                    relevant_keywords=RELEVANT_KEYWORDS,
-                    negative_keywords=NEGATIVE_KEYWORDS,
                 )
             except Exception as e:
                 logs.append({
@@ -155,6 +174,10 @@ def discover_pages_for_country(country: str):
                 })
                 continue
 
+            if score < MIN_RELEVANCE_SCORE:
+                checked += 1
+                continue
+
             record = {
                 "country": country,
                 "seed_name": seed_name,
@@ -164,11 +187,28 @@ def discover_pages_for_country(country: str):
                 "page_domain": extract_domain(page_url),
                 "relevance_score": score,
                 "reason": reason,
+                "page_category": category,
                 "status": "new",
             }
 
             save_page(record)
             discovered.append(record)
+
+            try:
+                entities = extract_entities(body_text)
+                for ent in entities:
+                    ent_record = {
+                        "country": country,
+                        "source_url": page_url,
+                        "entity_name": ent["entity_name"],
+                        "entity_type": ent["entity_type"],
+                        "rationale": ent["rationale"],
+                    }
+                    save_entity(ent_record)
+                    discovered_entities.append(ent_record)
+            except Exception:
+                pass
+
             checked += 1
 
-    return discovered, logs
+    return discovered, discovered_entities, logs
