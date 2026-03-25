@@ -2,14 +2,14 @@ import re
 from collections import defaultdict
 
 from utils import split_sentences, normalize_whitespace
-from operators import KNOWN_OPERATORS
+from operator_map import OPERATOR_KEYWORDS
 
 SIGNAL_PATTERNS = {
-    "runway": ["runway", "pista", "recapeamento", "resurfacing", "taxiway"],
-    "lighting": ["lighting", "balizamento", "papi", "visual aids", "illumination"],
-    "construction": ["construction", "obra", "obras", "expansion", "modernization", "reform"],
+    "runway": ["runway", "pista", "recapeamento", "resurfacing", "taxiway", "taxiamento"],
+    "lighting": ["lighting", "balizamento", "papi", "visual aids", "illumination", "auxílios visuais"],
+    "construction": ["construction", "obra", "obras", "expansion", "modernization", "reform", "ampliação", "reforma"],
     "budget": ["investment", "investimento", "budget", "funding", "grant", "program", "programa", "fnac"],
-    "energy": ["transformador", "substation", "energia", "power"],
+    "energy": ["transformador", "substation", "energia", "power", "subestação"],
 }
 
 AIRPORT_PATTERNS = [
@@ -22,12 +22,15 @@ AIRPORT_PATTERNS = [
 BAD_ASSET_PATTERNS = [
     "assuntos",
     "notícias",
+    "noticias",
     "formação",
     "capacitação",
     "programa",
     "gov.br",
     "ministry",
     "secretaria",
+    "conselho",
+    "fundo",
 ]
 
 NOISE_PATTERNS = [
@@ -41,6 +44,7 @@ NOISE_PATTERNS = [
     "copyright",
     "service channels",
     "contact us",
+    "todos os direitos reservados",
 ]
 
 
@@ -51,23 +55,32 @@ def looks_like_bad_asset(name: str) -> bool:
     return any(p in lowered for p in BAD_ASSET_PATTERNS)
 
 
-def clean_asset_name(page_title: str, body_text: str, page_url: str, page_category: str):
-    # Priority 1: airport-like URL slugs
+def slug_to_asset_name(page_url: str) -> str:
     slug = page_url.lower()
 
     if "aeroporto-" in slug or "/aeroporto-" in slug:
-        m = re.search(r"(aeroporto[-/][a-z0-9\-]+)", slug)
+        m = re.search(r"/(aeroporto-[a-z0-9\-]+)/?", slug)
         if m:
-            text = m.group(1).replace("-", " ").replace("/", " ")
-            return normalize_whitespace(text.title())
+            text = m.group(1).replace("-", " ").title()
+            return normalize_whitespace(text)
 
     if "aerodromo-" in slug or "/aerodromo-" in slug:
-        m = re.search(r"(aerodromo[-/][a-z0-9\-]+)", slug)
+        m = re.search(r"/(aerodromo-[a-z0-9\-]+)/?", slug)
         if m:
-            text = m.group(1).replace("-", " ").replace("/", " ")
-            return normalize_whitespace(text.title().replace("Aerodromo", "Aeródromo"))
+            text = m.group(1).replace("-", " ").title()
+            text = text.replace("Aerodromo", "Aeródromo")
+            return normalize_whitespace(text)
 
-    # Priority 2: explicit airport patterns in title
+    return ""
+
+
+def clean_asset_name(page_title: str, body_text: str, page_url: str, page_category: str) -> str:
+    # Priority 1: URL slug
+    slug_name = slug_to_asset_name(page_url)
+    if slug_name and not looks_like_bad_asset(slug_name):
+        return slug_name
+
+    # Priority 2: title
     for pattern in AIRPORT_PATTERNS:
         m = re.search(pattern, page_title or "")
         if m:
@@ -75,7 +88,7 @@ def clean_asset_name(page_title: str, body_text: str, page_url: str, page_catego
             if not looks_like_bad_asset(candidate):
                 return candidate
 
-    # Priority 3: explicit airport patterns in body
+    # Priority 3: body
     for pattern in AIRPORT_PATTERNS:
         m = re.search(pattern, body_text or "")
         if m:
@@ -83,10 +96,11 @@ def clean_asset_name(page_title: str, body_text: str, page_url: str, page_catego
             if not looks_like_bad_asset(candidate):
                 return candidate
 
-    # Priority 4: for non-airport pages, keep readable title only if not junk
-    candidate = normalize_whitespace(page_title or "")
-    if candidate and not looks_like_bad_asset(candidate):
-        return candidate
+    # Priority 4: only for airport/airstrip-like pages
+    if page_category in ["airport_page", "airstrip_page", "military_base_page", "mining_airstrip_page"]:
+        candidate = normalize_whitespace(page_title or "")
+        if candidate and not looks_like_bad_asset(candidate):
+            return candidate
 
     return ""
 
@@ -107,6 +121,12 @@ def is_noise_sentence(sentence: str) -> bool:
     if s.count("|") > 1:
         return True
     if len(s.split()) > 55:
+        return True
+
+    # only years / only numbers
+    if re.fullmatch(r"[\d\s\-\(\)\/]+", s):
+        return True
+    if re.fullmatch(r"(\d{4}\s*){2,}", s):
         return True
 
     return False
@@ -145,6 +165,7 @@ def to_english(sentence: str):
         "reforma": "renovation",
         "taxiamento": "taxiway operations",
         "auxílios visuais": "visual aids",
+        "subestação": "substation",
     }
 
     for k, v in replacements.items():
@@ -179,11 +200,13 @@ def extract_signal_quotes(body_text: str):
     return list(dedup.values())
 
 
-def detect_operator(text: str):
-    lowered = (text or "").lower()
-    for key, val in KNOWN_OPERATORS.items():
-        if key in lowered:
+def detect_operator(*texts) -> str:
+    haystack = " ".join([t for t in texts if t]).lower()
+
+    for key, val in OPERATOR_KEYWORDS.items():
+        if key in haystack:
             return val
+
     return ""
 
 
@@ -249,13 +272,14 @@ def build_signal_records_from_pages(pages, entities, country):
         group["asset"] = asset
         group["sources"].add(p["page_url"])
 
-        operator = detect_operator(" ".join([
+        page_operator = detect_operator(
+            p.get("seed_name", ""),
             p.get("page_title", ""),
             p.get("body_text", ""),
             p.get("page_url", ""),
-        ]))
-        if operator and not group["operator"]:
-            group["operator"] = operator
+        )
+        if page_operator and not group["operator"]:
+            group["operator"] = page_operator
 
         signals = extract_signal_quotes(p.get("body_text", ""))
 
@@ -275,16 +299,24 @@ def build_signal_records_from_pages(pages, entities, country):
                 continue
 
             et = e["entity_type"]
-            if et in group["actors"]:
-                group["actors"][et].add(e["entity_name"])
+            ename = e["entity_name"]
 
-                if et in ["municipality", "regional_actor", "airport_operator", "mining_company", "military_branch"]:
-                    group["budget_owners"].add(e["entity_name"])
+            # actor buckets
+            if et in group["actors"]:
+                group["actors"][et].add(ename)
+
+            # budget owners
+            if et in ["municipality", "regional_actor", "airport_operator", "mining_company", "military_branch"]:
+                group["budget_owners"].add(ename)
+
+            # operator enrichment from entities too
+            enriched_operator = detect_operator(ename)
+            if enriched_operator and not group["operator"]:
+                group["operator"] = enriched_operator
 
     result = []
 
     for g in grouped.values():
-        # dedup signals by original quote
         seen = set()
         unique_signals = []
         for s in g["signals"]:
