@@ -15,7 +15,13 @@ OPERATOR_KEYWORDS = {
     "inframérica": "Inframerica",
     "inframerica": "Inframerica",
     "gru airport": "GRU Airport",
+    "gru": "GRU Airport",
     "riogaleão": "RioGaleão",
     "rio galeao": "RioGaleão",
     "bh airport": "BH Airport",
+    "opain": "OPAIN",
+    "airplan": "Airplan",
+    "oma": "OMA",
+    "asur": "ASUR",
+    "gap": "GAP",
 }
