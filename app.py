@@ -126,16 +126,39 @@ log_box.code("\n".join(st.session_state.live_logs[-30:]) if st.session_state.liv
 
 records = st.session_state.get("signal_records", [])
 
+# Management Summary
+st.subheader("Management Summary")
+
+if records:
+    total_assets = len(records)
+    total_signals = sum(len(r.get("signals", [])) for r in records)
+
+    operators = {}
+    for r in records:
+        op = r.get("operator") or "Unknown"
+        operators[op] = operators.get(op, 0) + 1
+
+    top_ops = sorted(operators.items(), key=lambda x: x[1], reverse=True)[:8]
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.write(f"Assets detected: {total_assets}")
+        st.write(f"Total signals: {total_signals}")
+    with c2:
+        st.write("Top operators:")
+        for op, cnt in top_ops:
+            st.write(f"- {op}: {cnt}")
+else:
+    st.info("No radar results yet. Click 'Run Radar'.")
+
 st.subheader("Radar overview")
 
-if not records:
-    st.info("No radar results yet. Click 'Run Radar'.")
-else:
+if records:
     table_rows = []
     for r in records:
         table_rows.append({
             "Asset": r.get("asset", ""),
-            "Operator": r.get("operator", ""),
+            "Operator": r.get("operator", "") or "Unknown",
             "Signal count": r.get("signal_count", 0),
             "What is happening": r.get("signals", [{}])[0].get("text", "") if r.get("signals") else "",
             "Likely need": ", ".join(r.get("needs", [])),
@@ -151,7 +174,8 @@ else:
 
     rec = next(r for r in records if r.get("asset") == selected_asset)
 
-    st.markdown(f"## {rec.get('asset', '')}")
+    signal_count = len(rec.get("signals", []))
+    st.markdown(f"## {rec.get('asset', '')} ({signal_count} signals)")
     st.write(f"Operator: {rec.get('operator') or 'Unknown'}")
 
     if rec.get("budget_owners"):
@@ -164,9 +188,9 @@ else:
     if actors.get("regional_actor"):
         st.write(f"Regional actor: {', '.join(actors.get('regional_actor', []))}")
     if actors.get("mining_company"):
-        st.write(f"Mining company: {', '.join(actors.get('mining_company', []))}")
+        st.write(f"Mining: {', '.join(actors.get('mining_company', []))}")
     if actors.get("military_branch"):
-        st.write(f"Military branch: {', '.join(actors.get('military_branch', []))}")
+        st.write(f"Military: {', '.join(actors.get('military_branch', []))}")
 
     st.subheader("What is happening")
     for s in rec.get("signals", [])[:6]:
