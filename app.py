@@ -42,6 +42,7 @@ if st.button("Run Radar"):
     add_log("1/4 Discovering pages and entities")
     discovered, entities, logs = discover_pages_for_country(selected_country, log_callback=add_log)
     progress.progress(25, text="Discovery completed")
+    add_log(f"New pages found this run: {len(discovered)}")
 
     add_log("2/4 Auto-filtering strong pages")
     rows = db.get_pages(selected_country)
@@ -111,9 +112,13 @@ if st.button("Run Radar"):
     records = build_signal_records_from_pages(pages, entities, selected_country)
     st.session_state.signal_records = records
 
+    total_pages_in_db = len(db.get_pages(selected_country))
+    total_entities_in_db = len(db.get_entities(selected_country))
+
     progress.progress(100, text="Radar finished")
     status_box.success(
-        f"Radar finished | Pages: {len(discovered)} | Entities: {len(entities)} | Assets with signals: {len(records)}"
+        f"Radar finished | New pages this run: {len(discovered)} | Total pages in DB: {total_pages_in_db} | "
+        f"Entities in DB: {total_entities_in_db} | Assets with signals: {len(records)}"
     )
 
 st.subheader("Run log")
@@ -126,61 +131,63 @@ st.subheader("Radar overview")
 if not records:
     st.info("No radar results yet. Click 'Run Radar'.")
 else:
-    rows = []
+    table_rows = []
     for r in records:
-        rows.append({
-            "Asset": r["asset"],
-            "Operator": r["operator"],
-            "Signal count": r["signal_count"],
-            "What is happening": r["signals"][0]["text"] if r["signals"] else "",
-            "Likely need": ", ".join(r["needs"]),
-            "Budget / decision body": ", ".join(r["budget_owners"][:3]),
-            "Source count": len(r["sources"]),
+        table_rows.append({
+            "Asset": r.get("asset", ""),
+            "Operator": r.get("operator", ""),
+            "Signal count": r.get("signal_count", 0),
+            "What is happening": r.get("signals", [{}])[0].get("text", "") if r.get("signals") else "",
+            "Likely need": ", ".join(r.get("needs", [])),
+            "Budget / decision body": ", ".join(r.get("budget_owners", [])[:3]),
+            "Source count": len(r.get("sources", [])),
         })
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(table_rows)
     st.dataframe(df, use_container_width=True)
 
-    asset_names = [r["asset"] for r in records]
+    asset_names = [r.get("asset", "") for r in records if r.get("asset")]
     selected_asset = st.selectbox("Select asset", asset_names)
 
-    rec = next(r for r in records if r["asset"] == selected_asset)
+    rec = next(r for r in records if r.get("asset") == selected_asset)
 
-    st.markdown(f"## {rec['asset']}")
-    st.write(f"Operator: {rec['operator'] or 'Unknown'}")
+    st.markdown(f"## {rec.get('asset', '')}")
+    st.write(f"Operator: {rec.get('operator') or 'Unknown'}")
 
-    if rec["budget_owners"]:
-        st.write(f"Budget / decision body: {', '.join(rec['budget_owners'])}")
+    if rec.get("budget_owners"):
+        st.write(f"Budget / decision body: {', '.join(rec.get('budget_owners', []))}")
 
-    if rec["actors"]["municipality"]:
-        st.write(f"Municipality: {', '.join(rec['actors']['municipality'])}")
-    if rec["actors"]["regional_actor"]:
-        st.write(f"Regional actor: {', '.join(rec['actors']['regional_actor'])}")
-    if rec["actors"]["mining_company"]:
-        st.write(f"Mining company: {', '.join(rec['actors']['mining_company'])}")
-    if rec["actors"]["military_branch"]:
-        st.write(f"Military branch: {', '.join(rec['actors']['military_branch'])}")
+    actors = rec.get("actors", {})
+
+    if actors.get("municipality"):
+        st.write(f"Municipality: {', '.join(actors.get('municipality', []))}")
+    if actors.get("regional_actor"):
+        st.write(f"Regional actor: {', '.join(actors.get('regional_actor', []))}")
+    if actors.get("mining_company"):
+        st.write(f"Mining company: {', '.join(actors.get('mining_company', []))}")
+    if actors.get("military_branch"):
+        st.write(f"Military branch: {', '.join(actors.get('military_branch', []))}")
 
     st.subheader("What is happening")
-    for s in rec["signals"][:6]:
-        st.write(f"- {s['text']}")
-        st.caption(s["source"])
+    for s in rec.get("signals", [])[:6]:
+        st.write(f"- {s.get('text', '')}")
+        st.caption(s.get("source", ""))
 
     st.subheader("Likely need")
-    if rec["needs"]:
-        for n in rec["needs"]:
+    if rec.get("needs"):
+        for n in rec.get("needs", []):
             st.write(f"- {n}")
     else:
         st.write("No clear need extracted.")
 
     with st.expander("Evidence (original quotes + sources)", expanded=False):
-        for idx, s in enumerate(rec["signals"], start=1):
-            st.markdown(f"**{idx}. {', '.join(s['types'])}**")
-            st.write(s["quote_original"])
-            st.caption(s["source"])
+        for idx, s in enumerate(rec.get("signals", []), start=1):
+            st.markdown(f"**{idx}. {', '.join(s.get('types', []))}**")
+            st.write(s.get("quote_original", ""))
+            st.caption(s.get("source", ""))
 
     with st.expander("All source pages", expanded=False):
-        for url in rec["sources"]:
+        for url in rec.get("sources", []):
             st.write(url)
 
 with st.expander("Discovered pages", expanded=False):
