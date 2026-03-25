@@ -49,11 +49,8 @@ def parse_links(base_url: str, html: str):
             continue
         if not is_probably_html_url(absolute):
             continue
-
-        # keep same-domain crawling for stability
         if not is_same_domain(base_url, absolute):
             continue
-
         if looks_like_junk_url(absolute):
             continue
 
