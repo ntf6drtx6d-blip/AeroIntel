@@ -79,5 +79,6 @@ def looks_like_junk_url(url: str) -> bool:
 def split_sentences(text: str):
     if not text:
         return []
+
     parts = re.split(r"(?<=[\.\!\?])\s+", text)
     return [normalize_whitespace(p) for p in parts if normalize_whitespace(p)]
