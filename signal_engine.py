@@ -20,31 +20,14 @@ AIRPORT_PATTERNS = [
 ]
 
 BAD_ASSET_PATTERNS = [
-    "assuntos",
-    "notícias",
-    "noticias",
-    "formação",
-    "capacitação",
-    "programa",
-    "gov.br",
-    "ministry",
-    "secretaria",
-    "conselho",
-    "fundo",
+    "assuntos", "notícias", "noticias", "formação", "capacitação",
+    "programa", "gov.br", "ministry", "secretaria", "conselho", "fundo"
 ]
 
 NOISE_PATTERNS = [
-    "acesso rápido",
-    "links externos",
-    "fale conosco",
-    "portal financeiro",
-    "video aulas",
-    "cookies",
-    "privacy",
-    "copyright",
-    "service channels",
-    "contact us",
-    "todos os direitos reservados",
+    "acesso rápido", "links externos", "fale conosco", "portal financeiro",
+    "video aulas", "cookies", "privacy", "copyright", "service channels",
+    "contact us", "todos os direitos reservados"
 ]
 
 
@@ -61,26 +44,22 @@ def slug_to_asset_name(page_url: str) -> str:
     if "aeroporto-" in slug or "/aeroporto-" in slug:
         m = re.search(r"/(aeroporto-[a-z0-9\-]+)/?", slug)
         if m:
-            text = m.group(1).replace("-", " ").title()
-            return normalize_whitespace(text)
+            return normalize_whitespace(m.group(1).replace("-", " ").title())
 
     if "aerodromo-" in slug or "/aerodromo-" in slug:
         m = re.search(r"/(aerodromo-[a-z0-9\-]+)/?", slug)
         if m:
-            text = m.group(1).replace("-", " ").title()
-            text = text.replace("Aerodromo", "Aeródromo")
-            return normalize_whitespace(text)
+            txt = m.group(1).replace("-", " ").title()
+            return normalize_whitespace(txt.replace("Aerodromo", "Aeródromo"))
 
     return ""
 
 
 def clean_asset_name(page_title: str, body_text: str, page_url: str, page_category: str) -> str:
-    # Priority 1: URL slug
     slug_name = slug_to_asset_name(page_url)
     if slug_name and not looks_like_bad_asset(slug_name):
         return slug_name
 
-    # Priority 2: title
     for pattern in AIRPORT_PATTERNS:
         m = re.search(pattern, page_title or "")
         if m:
@@ -88,7 +67,6 @@ def clean_asset_name(page_title: str, body_text: str, page_url: str, page_catego
             if not looks_like_bad_asset(candidate):
                 return candidate
 
-    # Priority 3: body
     for pattern in AIRPORT_PATTERNS:
         m = re.search(pattern, body_text or "")
         if m:
@@ -96,7 +74,6 @@ def clean_asset_name(page_title: str, body_text: str, page_url: str, page_catego
             if not looks_like_bad_asset(candidate):
                 return candidate
 
-    # Priority 4: only for airport/airstrip-like pages
     if page_category in ["airport_page", "airstrip_page", "military_base_page", "mining_airstrip_page"]:
         candidate = normalize_whitespace(page_title or "")
         if candidate and not looks_like_bad_asset(candidate):
@@ -112,9 +89,7 @@ def is_noise_sentence(sentence: str) -> bool:
 
     lowered = s.lower()
 
-    if len(s) < 35:
-        return True
-    if len(s) > 350:
+    if len(s) < 35 or len(s) > 350:
         return True
     if any(p in lowered for p in NOISE_PATTERNS):
         return True
@@ -122,8 +97,6 @@ def is_noise_sentence(sentence: str) -> bool:
         return True
     if len(s.split()) > 55:
         return True
-
-    # only years / only numbers
     if re.fullmatch(r"[\d\s\-\(\)\/]+", s):
         return True
     if re.fullmatch(r"(\d{4}\s*){2,}", s):
@@ -194,8 +167,7 @@ def extract_signal_quotes(body_text: str):
 
     dedup = {}
     for item in found:
-        key = item["quote_original"]
-        dedup[key] = item
+        dedup[item["quote_original"]] = item
 
     return list(dedup.values())
 
@@ -240,6 +212,7 @@ def build_signal_records_from_pages(pages, entities, country):
             "military_branch": set(),
         },
         "budget_owners": set(),
+        "signal_type_counts": defaultdict(int),
     })
 
     approved_pages = [
@@ -293,6 +266,8 @@ def build_signal_records_from_pages(pages, entities, country):
             })
             for n in infer_need(signal_types):
                 group["needs"].add(n)
+            for t in signal_types:
+                group["signal_type_counts"][t] += 1
 
         for e in entities:
             if e["source_url"] != p["page_url"]:
@@ -301,18 +276,21 @@ def build_signal_records_from_pages(pages, entities, country):
             et = e["entity_type"]
             ename = e["entity_name"]
 
-            # actor buckets
             if et in group["actors"]:
                 group["actors"][et].add(ename)
 
-            # budget owners
             if et in ["municipality", "regional_actor", "airport_operator", "mining_company", "military_branch"]:
                 group["budget_owners"].add(ename)
 
-            # operator enrichment from entities too
             enriched_operator = detect_operator(ename)
             if enriched_operator and not group["operator"]:
                 group["operator"] = enriched_operator
+
+        # fallback from actor layer
+        if not group["operator"] and group["actors"]["airport_operator"]:
+            actor_candidate = detect_operator(" ".join(group["actors"]["airport_operator"]))
+            if actor_candidate:
+                group["operator"] = actor_candidate
 
     result = []
 
@@ -335,6 +313,7 @@ def build_signal_records_from_pages(pages, entities, country):
             g["actors"][k] = sorted(list(g["actors"][k]))
 
         g["budget_owners"] = sorted(list(g["budget_owners"]))
+        g["signal_type_counts"] = dict(g["signal_type_counts"])
 
         if g["signal_count"] > 0:
             result.append(g)
