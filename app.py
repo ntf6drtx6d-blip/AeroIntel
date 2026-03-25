@@ -1,19 +1,12 @@
 import pandas as pd
 import streamlit as st
 
+import db
 from country_seeds import COUNTRY_SEEDS
-from db import (
-    init_db,
-    get_pages,
-    get_entities,
-    get_target_profiles,
-    clear_pages,
-    update_page_status,
-)
 from site_explorer import discover_pages_for_country
 from target_profile_builder import build_target_profiles_from_pages
 
-init_db()
+db.init_db()
 
 st.set_page_config(layout="wide", page_title="AeroIntel")
 st.title("🧠 AeroIntel")
@@ -38,6 +31,7 @@ with col1:
 
         with log_box:
             st.write("Fetching seed domains...")
+
         discovered, entities, logs = discover_pages_for_country(selected_country)
 
         progress.progress(100, text="Discovery finished")
@@ -56,7 +50,7 @@ with col1:
 
 with col2:
     if st.button("Auto-approve strong pages"):
-        rows = get_pages(selected_country)
+        rows = db.get_pages(selected_country)
         approved_count = 0
 
         for row in rows:
@@ -74,7 +68,7 @@ with col2:
                 "municipality_airport_page",
                 "operator_page",
             ]:
-                update_page_status(page_url, "approved")
+                db.update_page_status(page_url, "approved")
                 approved_count += 1
 
         progress_box.success(f"Auto-approved {approved_count} pages")
@@ -82,7 +76,7 @@ with col2:
 
 with col3:
     if st.button("Reject junk pages"):
-        rows = get_pages(selected_country)
+        rows = db.get_pages(selected_country)
         rejected_count = 0
 
         for row in rows:
@@ -91,7 +85,7 @@ with col3:
             page_category = row[8]
 
             if page_category == "junk" or relevance_score < 20:
-                update_page_status(page_url, "rejected")
+                db.update_page_status(page_url, "rejected")
                 rejected_count += 1
 
         progress_box.success(f"Rejected {rejected_count} pages")
@@ -99,8 +93,8 @@ with col3:
 
 with col4:
     if st.button("Build target profiles"):
-        rows = get_pages(selected_country)
-        entity_rows = get_entities(selected_country)
+        rows = db.get_pages(selected_country)
+        entity_rows = db.get_entities(selected_country)
 
         pages_list = [
             {
@@ -151,13 +145,13 @@ with extra_col1:
 
 with extra_col2:
     if st.button("Clear database"):
-        clear_pages()
+        db.clear_pages()
         progress_box.success("Database cleared")
         st.rerun()
 
 st.subheader("Discovered pages")
 
-rows = get_pages(selected_country)
+rows = db.get_pages(selected_country)
 
 if not rows:
     st.info("No pages discovered yet.")
@@ -206,22 +200,22 @@ else:
 
         with c1:
             if st.button("Approve", key=f"approve_{selected_country}_{idx}"):
-                update_page_status(row["page_url"], "approved")
+                db.update_page_status(row["page_url"], "approved")
                 st.rerun()
 
         with c2:
             if st.button("Reject", key=f"reject_{selected_country}_{idx}"):
-                update_page_status(row["page_url"], "rejected")
+                db.update_page_status(row["page_url"], "rejected")
                 st.rerun()
 
         with c3:
             if st.button("Keep new", key=f"new_{selected_country}_{idx}"):
-                update_page_status(row["page_url"], "new")
+                db.update_page_status(row["page_url"], "new")
                 st.rerun()
 
 st.subheader("Discovered entities")
 
-entity_rows = get_entities(selected_country)
+entity_rows = db.get_entities(selected_country)
 
 if not entity_rows:
     st.info("No entities discovered yet.")
@@ -241,7 +235,7 @@ else:
 
 st.subheader("Target Profiles")
 
-profiles = get_target_profiles(selected_country)
+profiles = db.get_target_profiles(selected_country)
 
 if not profiles:
     st.info("No target profiles yet.")
