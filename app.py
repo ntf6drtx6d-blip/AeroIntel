@@ -134,13 +134,25 @@ if records:
     total_signals = sum(len(r.get("signals", [])) for r in records)
 
     operators = {}
+    budget_bodies = {}
+    signal_types = {}
+
     for r in records:
         op = r.get("operator") or "Unknown"
         operators[op] = operators.get(op, 0) + 1
 
-    top_ops = sorted(operators.items(), key=lambda x: x[1], reverse=True)[:8]
+        for b in r.get("budget_owners", []):
+            budget_bodies[b] = budget_bodies.get(b, 0) + 1
 
-    c1, c2 = st.columns(2)
+        for s in r.get("signals", []):
+            for t in s.get("types", []):
+                signal_types[t] = signal_types.get(t, 0) + 1
+
+    top_ops = sorted(operators.items(), key=lambda x: x[1], reverse=True)[:8]
+    top_budget = sorted(budget_bodies.items(), key=lambda x: x[1], reverse=True)[:8]
+    top_signal_types = sorted(signal_types.items(), key=lambda x: x[1], reverse=True)[:8]
+
+    c1, c2, c3 = st.columns(3)
     with c1:
         st.write(f"Assets detected: {total_assets}")
         st.write(f"Total signals: {total_signals}")
@@ -148,6 +160,14 @@ if records:
         st.write("Top operators:")
         for op, cnt in top_ops:
             st.write(f"- {op}: {cnt}")
+    with c3:
+        st.write("Top budget bodies:")
+        for b, cnt in top_budget:
+            st.write(f"- {b}: {cnt}")
+
+    with st.expander("Top signal types", expanded=False):
+        for s, cnt in top_signal_types:
+            st.write(f"- {s}: {cnt}")
 else:
     st.info("No radar results yet. Click 'Run Radar'.")
 
@@ -195,7 +215,8 @@ if records:
     st.subheader("What is happening")
     for s in rec.get("signals", [])[:6]:
         st.write(f"- {s.get('text', '')}")
-        st.caption(s.get("source", ""))
+        st.caption(f"Source page: {s.get('source', '')}")
+        st.caption(f"Original quote: {s.get('quote_original', '')}")
 
     st.subheader("Likely need")
     if rec.get("needs"):
@@ -207,7 +228,8 @@ if records:
     with st.expander("Evidence (original quotes + sources)", expanded=False):
         for idx, s in enumerate(rec.get("signals", []), start=1):
             st.markdown(f"**{idx}. {', '.join(s.get('types', []))}**")
-            st.write(s.get("quote_original", ""))
+            st.write(f"English: {s.get('text', '')}")
+            st.write(f"Original: {s.get('quote_original', '')}")
             st.caption(s.get("source", ""))
 
     with st.expander("All source pages", expanded=False):
