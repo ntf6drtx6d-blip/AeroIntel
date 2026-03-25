@@ -1,4 +1,6 @@
-COUNTRY_SEEDS = {
+from operator_sources import OPERATOR_SOURCES
+
+BASE_COUNTRY_SEEDS = {
     "Brazil": [
         {"name": "ANAC Brazil EN", "type": "caa", "url": "https://www.gov.br/anac/en"},
         {"name": "ANAC Brazil PT", "type": "caa", "url": "https://www.gov.br/anac/pt-br"},
@@ -31,3 +33,13 @@ COUNTRY_SEEDS = {
         {"name": "Ministry of Transport Jordan", "type": "ministry", "url": "https://mot.gov.jo/En"},
     ],
 }
+
+
+def _merge_seeds():
+    merged = {}
+    for country, seeds in BASE_COUNTRY_SEEDS.items():
+        merged[country] = list(seeds) + list(OPERATOR_SOURCES.get(country, []))
+    return merged
+
+
+COUNTRY_SEEDS = _merge_seeds()
