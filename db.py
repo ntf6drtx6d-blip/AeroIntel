@@ -34,7 +34,8 @@ def init_db():
         reason TEXT,
         page_category TEXT,
         status TEXT,
-        discovered_at TEXT
+        discovered_at TEXT,
+        body_text TEXT
     )
     """)
 
@@ -51,14 +52,20 @@ def init_db():
     """)
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS airport_profiles (
+    CREATE TABLE IF NOT EXISTS target_profiles (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        airport_name TEXT,
+        asset_name TEXT,
         country TEXT,
-        source_url TEXT,
-        municipality TEXT,
+        asset_type TEXT,
+        owner TEXT,
+        operator TEXT,
         regional_actor TEXT,
         mining_company TEXT,
+        military_branch TEXT,
+        official_contact_email TEXT,
+        official_contact_phone TEXT,
+        contact_roles TEXT,
+        source_url TEXT,
         confidence INTEGER,
         created_at TEXT
     )
@@ -73,6 +80,7 @@ def init_db():
     ensure_column("discovered_pages", "page_domain", "TEXT")
     ensure_column("discovered_pages", "seed_name", "TEXT")
     ensure_column("discovered_pages", "seed_type", "TEXT")
+    ensure_column("discovered_pages", "body_text", "TEXT")
 
     ensure_column("discovered_entities", "country", "TEXT")
     ensure_column("discovered_entities", "source_url", "TEXT")
@@ -92,9 +100,9 @@ def save_page(record):
         """
         INSERT OR IGNORE INTO discovered_pages (
             country, seed_name, seed_type, page_title, page_url,
-            page_domain, relevance_score, reason, page_category, status, discovered_at
+            page_domain, relevance_score, reason, page_category, status, discovered_at, body_text
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             record.get("country"),
@@ -108,6 +116,7 @@ def save_page(record):
             record.get("page_category", "other"),
             record.get("status", "new"),
             str(datetime.datetime.now()),
+            record.get("body_text"),
         ),
     )
     conn.commit()
@@ -133,21 +142,28 @@ def save_entity(record):
     conn.commit()
 
 
-def save_airport_profile(record):
+def save_target_profile(record):
     cursor.execute("""
-    INSERT INTO airport_profiles (
-        airport_name, country, source_url,
-        municipality, regional_actor, mining_company,
-        confidence, created_at
+    INSERT INTO target_profiles (
+        asset_name, country, asset_type, owner, operator,
+        regional_actor, mining_company, military_branch,
+        official_contact_email, official_contact_phone, contact_roles,
+        source_url, confidence, created_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        record["airport_name"],
+        record["asset_name"],
         record["country"],
-        record["source_url"],
-        record["municipality"],
+        record["asset_type"],
+        record["owner"],
+        record["operator"],
         record["regional_actor"],
         record["mining_company"],
+        record["military_branch"],
+        record["official_contact_email"],
+        record["official_contact_phone"],
+        record["contact_roles"],
+        record["source_url"],
         record["confidence"],
         str(datetime.datetime.now()),
     ))
@@ -166,7 +182,7 @@ def get_pages(country=None):
     if country:
         cursor.execute("""
             SELECT country, seed_name, seed_type, page_title, page_url,
-                   page_domain, relevance_score, reason, page_category, status, discovered_at
+                   page_domain, relevance_score, reason, page_category, status, discovered_at, body_text
             FROM discovered_pages
             WHERE country = ?
             ORDER BY relevance_score DESC, discovered_at DESC
@@ -174,7 +190,7 @@ def get_pages(country=None):
     else:
         cursor.execute("""
             SELECT country, seed_name, seed_type, page_title, page_url,
-                   page_domain, relevance_score, reason, page_category, status, discovered_at
+                   page_domain, relevance_score, reason, page_category, status, discovered_at, body_text
             FROM discovered_pages
             ORDER BY relevance_score DESC, discovered_at DESC
         """)
@@ -198,20 +214,22 @@ def get_entities(country=None):
     return cursor.fetchall()
 
 
-def get_airport_profiles(country=None):
+def get_target_profiles(country=None):
     if country:
         cursor.execute("""
-            SELECT airport_name, country, municipality,
-                   regional_actor, mining_company, source_url
-            FROM airport_profiles
+            SELECT asset_name, country, asset_type, owner, operator, regional_actor,
+                   mining_company, military_branch, official_contact_email,
+                   official_contact_phone, contact_roles, source_url
+            FROM target_profiles
             WHERE country = ?
             ORDER BY created_at DESC
         """, (country,))
     else:
         cursor.execute("""
-            SELECT airport_name, country, municipality,
-                   regional_actor, mining_company, source_url
-            FROM airport_profiles
+            SELECT asset_name, country, asset_type, owner, operator, regional_actor,
+                   mining_company, military_branch, official_contact_email,
+                   official_contact_phone, contact_roles, source_url
+            FROM target_profiles
             ORDER BY created_at DESC
         """)
     return cursor.fetchall()
@@ -220,5 +238,5 @@ def get_airport_profiles(country=None):
 def clear_pages():
     cursor.execute("DELETE FROM discovered_pages")
     cursor.execute("DELETE FROM discovered_entities")
-    cursor.execute("DELETE FROM airport_profiles")
+    cursor.execute("DELETE FROM target_profiles")
     conn.commit()
