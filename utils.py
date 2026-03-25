@@ -51,7 +51,6 @@ def looks_like_junk_url(url: str) -> bool:
         return True
 
     lowered = url.lower()
-
     junk_parts = [
         "#",
         "search?",
@@ -74,5 +73,11 @@ def looks_like_junk_url(url: str) -> bool:
         "cookies",
         "faq",
     ]
-
     return any(part in lowered for part in junk_parts)
+
+
+def split_sentences(text: str):
+    if not text:
+        return []
+    parts = re.split(r"(?<=[\.\!\?])\s+", text)
+    return [normalize_whitespace(p) for p in parts if normalize_whitespace(p)]
