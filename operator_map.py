@@ -1,1 +1,21 @@
-
+OPERATOR_KEYWORDS = {
+    "infraero": "Infraero",
+    "fraport": "Fraport",
+    "vinci": "VINCI Airports",
+    "aena": "AENA",
+    "adp": "Groupe ADP",
+    "egis": "Egis",
+    "zurich": "Zurich Airport",
+    "rede voa": "Rede Voa",
+    "red voa": "Rede Voa",
+    "voa": "Rede Voa",
+    "ccr": "CCR Aeroportos",
+    "motiva": "Motiva / CCR",
+    "socicam": "Socicam",
+    "inframérica": "Inframerica",
+    "inframerica": "Inframerica",
+    "gru airport": "GRU Airport",
+    "riogaleão": "RioGaleão",
+    "rio galeao": "RioGaleão",
+    "bh airport": "BH Airport",
+}
