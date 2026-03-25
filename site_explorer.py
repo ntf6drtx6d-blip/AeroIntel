@@ -49,8 +49,11 @@ def parse_links(base_url: str, html: str):
             continue
         if not is_probably_html_url(absolute):
             continue
+
+        # keep same-domain crawling for stability
         if not is_same_domain(base_url, absolute):
             continue
+
         if looks_like_junk_url(absolute):
             continue
 
@@ -74,8 +77,8 @@ def extract_page_title_and_text(html: str):
         title = normalize_whitespace(soup.title.string)
 
     body_text = normalize_whitespace(soup.get_text(" ", strip=True))
-    if len(body_text) > 8000:
-        body_text = body_text[:8000]
+    if len(body_text) > 10000:
+        body_text = body_text[:10000]
 
     return title, body_text
 
