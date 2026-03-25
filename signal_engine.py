@@ -1,8 +1,37 @@
 import re
 from collections import defaultdict
 
-from config import SIGNAL_PATTERNS
 from utils import split_sentences, normalize_whitespace
+
+try:
+    from config import SIGNAL_PATTERNS
+except ImportError:
+    SIGNAL_PATTERNS = {
+        "construction_works": [
+            "obra", "obras", "construction", "works", "rehabilitation", "modernization", "ampliação", "expansion"
+        ],
+        "runway_signal": [
+            "pista", "runway", "airfield lighting", "aerodrome lighting", "lighting", "balizamento"
+        ],
+        "concession_signal": [
+            "concession", "concessão", "concessionaire", "privatization", "privatização"
+        ],
+        "budget_signal": [
+            "investment", "investimento", "budget", "funding", "grant", "program", "programa"
+        ],
+        "municipality_signal": [
+            "prefeitura", "município", "municipality", "council", "city of"
+        ],
+        "regional_authority_signal": [
+            "secretaria", "department of", "state of", "province of", "infraestrutura"
+        ],
+        "mining_signal": [
+            "vale", "mining", "mine", "mineracao", "mineração", "fifo"
+        ],
+        "military_signal": [
+            "air force", "navy", "army", "defence", "defense", "special operations", "air base"
+        ],
+    }
 
 
 AIRPORT_PATTERNS = [
