@@ -2,256 +2,152 @@ import re
 from collections import defaultdict
 
 from utils import split_sentences, normalize_whitespace
+from operators import KNOWN_OPERATORS
 
-try:
-    from config import SIGNAL_PATTERNS
-except ImportError:
-    SIGNAL_PATTERNS = {
-        "construction_works": [
-            "obra", "obras", "construction", "works", "rehabilitation", "modernization", "ampliação", "expansion"
-        ],
-        "runway_signal": [
-            "pista", "runway", "airfield lighting", "aerodrome lighting", "lighting", "balizamento", "papi"
-        ],
-        "concession_signal": [
-            "concession", "concessão", "concessionaire", "privatization", "privatização"
-        ],
-        "budget_signal": [
-            "investment", "investimento", "budget", "funding", "grant", "program", "programa"
-        ],
-        "municipality_signal": [
-            "prefeitura", "município", "municipality", "council", "city of"
-        ],
-        "regional_authority_signal": [
-            "secretaria", "department of", "state of", "province of", "infraestrutura"
-        ],
-        "mining_signal": [
-            "vale", "mining", "mine", "mineracao", "mineração", "fifo"
-        ],
-        "military_signal": [
-            "air force", "navy", "army", "defence", "defense", "special operations", "air base"
-        ],
-    }
+SIGNAL_PATTERNS = {
+    "runway": ["runway", "pista", "recapeamento", "resurfacing"],
+    "lighting": ["lighting", "balizamento", "papi", "visual aids"],
+    "construction": ["construction", "obra", "expansion", "modernization"],
+    "budget": ["investment", "budget", "funding", "program"],
+    "energy": ["transformador", "substation", "energia"],
+}
 
+def clean_asset_name(text):
+    if not text:
+        return ""
 
-AIRPORT_PATTERNS = [
-    r"Aeroporto [A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç\- ]+",
-    r"Aeródromo [A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç\- ]+",
-    r"Airport [A-Z][A-Za-z\- ]+",
-    r"Airstrip [A-Z][A-Za-z\- ]+",
-    r"Base [A-Z][A-Za-z\- ]+",
-    r"Naval Air Station [A-Z][A-Za-z\- ]+",
-]
+    patterns = [
+        r"Aeroporto [A-Za-zÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç\- ]+",
+        r"Aeródromo [A-Za-zÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç\- ]+",
+        r"Airport [A-Za-z\- ]+",
+    ]
 
-NOISE_PATTERNS = [
-    "acesso rápido",
-    "links externos",
-    "fale conosco",
-    "portal financeiro",
-    "video aulas",
-    "notícias",
-    "governo federal",
-    "cookies",
-    "privacy",
-    "copyright",
-    "todos os direitos reservados",
-    "main navigation",
-    "wrapper",
-    "service channels",
-    "contact us",
-]
-
-NOISE_REGEXES = [
-    r"^\d{4}(\s+\d{4})+$",              # years only
-    r"^[\d\-\(\)\s]{7,}$",              # numbers/phone-like only
-]
-
-
-def extract_asset_name(page_title: str, body_text: str, page_url: str):
-    hay = " ".join([page_title or "", body_text or "", page_url or ""])
-
-    for pattern in AIRPORT_PATTERNS:
-        m = re.search(pattern, hay)
+    for p in patterns:
+        m = re.search(p, text)
         if m:
             return normalize_whitespace(m.group())
 
-    if page_title:
-        return normalize_whitespace(page_title)
-
-    return page_url
+    return normalize_whitespace(text[:80])
 
 
-def is_noise_sentence(sentence: str) -> bool:
-    s = normalize_whitespace(sentence)
-    if not s:
-        return True
-
-    lowered = s.lower()
-
-    if len(s) < 25:
-        return True
-
-    if len(s) > 450:
-        return True
-
-    if any(p in lowered for p in NOISE_PATTERNS):
-        return True
-
-    if sum(lowered.count(x) for x in ["aeroporto", "airport", "aeródromo"]) > 5:
-        return True
-
-    if s.count("|") > 2:
-        return True
-
-    if len(s.split()) > 70:
-        return True
-
-    for rgx in NOISE_REGEXES:
-        if re.match(rgx, s):
-            return True
-
-    return False
+def detect_operator(text):
+    lowered = text.lower()
+    for key, val in KNOWN_OPERATORS.items():
+        if key in lowered:
+            return val
+    return ""
 
 
-def classify_sentence_type(sentence: str):
-    lowered = sentence.lower()
-    matched_types = []
-
-    for signal_type, keywords in SIGNAL_PATTERNS.items():
-        if any(keyword.lower() in lowered for keyword in keywords):
-            matched_types.append(signal_type)
-
-    return matched_types
-
-
-def extract_signal_quotes(body_text: str):
+def extract_signals(body_text):
     sentences = split_sentences(body_text)
-    found = []
+    results = []
 
-    for sentence in sentences:
-        if is_noise_sentence(sentence):
+    for s in sentences:
+        s_clean = normalize_whitespace(s)
+        if len(s_clean) < 40 or len(s_clean) > 300:
             continue
 
-        matched_types = classify_sentence_type(sentence)
-        if not matched_types:
-            continue
+        matched = []
+        for k, words in SIGNAL_PATTERNS.items():
+            if any(w in s_clean.lower() for w in words):
+                matched.append(k)
 
-        for signal_type in matched_types:
-            found.append({
-                "type": signal_type,
-                "quote": sentence,
+        if matched:
+            results.append({
+                "types": matched,
+                "quote": s_clean
             })
 
-    dedup = {}
-    for item in found:
-        key = (item["type"], item["quote"])
-        dedup[key] = item
+    return results
 
-    return list(dedup.values())
+
+def to_english(signal):
+    txt = signal["quote"]
+
+    # simple normalization layer (not AI hallucination)
+    replacements = {
+        "recapeamento": "resurfacing",
+        "pista": "runway",
+        "balizamento": "airfield lighting",
+        "obra": "construction",
+        "aeródromo": "aerodrome",
+        "aeroporto": "airport",
+        "energia": "power supply",
+    }
+
+    for k, v in replacements.items():
+        txt = txt.replace(k, v)
+
+    return txt
+
+
+def detect_need(signal_types):
+    if "lighting" in signal_types:
+        return "Airfield lighting / visual aids"
+    if "runway" in signal_types:
+        return "Runway / taxiway works"
+    if "energy" in signal_types:
+        return "Power infrastructure"
+    if "construction" in signal_types:
+        return "General airport upgrade"
+    return ""
 
 
 def build_signal_records_from_pages(pages, entities, country):
     grouped = defaultdict(lambda: {
-        "asset_name": None,
-        "country": country,
-        "page_urls": set(),
+        "asset": "",
+        "operator": "",
         "signals": [],
-        "actors": {
-            "municipality": set(),
-            "regional_actor": set(),
-            "airport_operator": set(),
-            "mining_company": set(),
-            "military_branch": set(),
-        },
-        "budget_owners": set(),
-        "signal_type_counts": defaultdict(int),
+        "sources": set(),
+        "needs": set(),
     })
 
-    approved_pages = [
-        p for p in pages
-        if p["status"] == "approved" and p["page_category"] in [
-            "airport_page",
-            "airstrip_page",
-            "military_base_page",
-            "mining_airstrip_page",
-            "projects_page",
-            "airport_registry",
-            "municipality_airport_page",
-            "operator_page",
-            "procurement_page",
-        ]
-    ]
+    for p in pages:
+        if p["status"] != "approved":
+            continue
 
-    for p in approved_pages:
-        asset_name = extract_asset_name(
-            p.get("page_title", ""),
-            p.get("body_text", ""),
-            p.get("page_url", ""),
+        asset = clean_asset_name(
+            p.get("page_title", "") + " " + p.get("body_text", "")
         )
 
-        group = grouped[asset_name]
-        group["asset_name"] = asset_name
-        group["page_urls"].add(p["page_url"])
+        group = grouped[asset]
+        group["asset"] = asset
 
-        quotes = extract_signal_quotes(p.get("body_text", ""))
-        for q in quotes:
+        operator = detect_operator(p.get("body_text", ""))
+        if operator:
+            group["operator"] = operator
+
+        signals = extract_signals(p.get("body_text", ""))
+
+        for s in signals:
+            en = to_english(s)
+            need = detect_need(s["types"])
+
             group["signals"].append({
-                "type": q["type"],
-                "quote": q["quote"],
+                "text": en,
                 "source": p["page_url"],
+                "types": s["types"]
             })
-            group["signal_type_counts"][q["type"]] += 1
 
-        for e in entities:
-            if e["source_url"] != p["page_url"]:
-                continue
+            if need:
+                group["needs"].add(need)
 
-            et = e["entity_type"]
-            if et in group["actors"]:
-                group["actors"][et].add(e["entity_name"])
-
-                if et in ["municipality", "regional_actor", "airport_operator", "mining_company", "military_branch"]:
-                    group["budget_owners"].add(e["entity_name"])
+        group["sources"].add(p["page_url"])
 
     result = []
 
-    for _, item in grouped.items():
-        item["page_urls"] = sorted(list(item["page_urls"]))
+    for g in grouped.values():
+        if not g["signals"]:
+            continue
 
-        for k in item["actors"]:
-            item["actors"][k] = sorted(list(item["actors"][k]))
+        result.append({
+            "asset": g["asset"],
+            "operator": g["operator"],
+            "signals": g["signals"],
+            "signal_count": len(g["signals"]),
+            "sources": list(g["sources"]),
+            "needs": list(g["needs"])
+        })
 
-        item["budget_owners"] = sorted(list(item["budget_owners"]))
-        item["signal_type_counts"] = dict(item["signal_type_counts"])
-
-        # short signals for "captain" level
-        short_signals = []
-        seen_short = set()
-        for sig in item["signals"]:
-            short_quote = sig["quote"]
-            if len(short_quote) > 180:
-                short_quote = short_quote[:177] + "..."
-            key = (sig["type"], short_quote)
-            if key in seen_short:
-                continue
-            seen_short.add(key)
-            short_signals.append({
-                "type": sig["type"],
-                "quote": short_quote,
-                "source": sig["source"],
-            })
-
-        item["short_signals"] = short_signals[:8]
-
-        if item["signals"] or any(item["actors"].values()):
-            result.append(item)
-
-    result.sort(
-        key=lambda x: (
-            len(x["signals"]),
-            len(x["budget_owners"]),
-            len(x["page_urls"]),
-        ),
-        reverse=True
-    )
+    result.sort(key=lambda x: x["signal_count"], reverse=True)
     return result
