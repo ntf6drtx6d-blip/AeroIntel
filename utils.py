@@ -70,6 +70,9 @@ def looks_like_junk_url(url: str) -> bool:
         "main-navigation",
         "wrapper",
         "govbr-busca-input",
+        "privacy",
+        "cookies",
+        "faq",
     ]
 
     return any(part in lowered for part in junk_parts)
