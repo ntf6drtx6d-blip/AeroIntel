@@ -11,7 +11,7 @@ db.init_db()
 
 st.set_page_config(layout="wide", page_title="AeroIntel")
 st.title("🧠 AeroIntel")
-st.caption("Signals + quotes + sources only")
+st.caption("Генерал / Капітан / Сержант")
 
 countries = list(COUNTRY_SEEDS.keys())
 selected_country = st.selectbox("Country", countries)
@@ -27,12 +27,19 @@ log_placeholder = st.empty()
 if "live_logs" not in st.session_state:
     st.session_state.live_logs = []
 
+if "signal_records" not in st.session_state:
+    st.session_state.signal_records = []
+
+
 def add_log(message: str):
     st.session_state.live_logs.append(message)
     log_placeholder.code("\n".join(st.session_state.live_logs[-50:]))
 
+
 if st.button("Run radar"):
     st.session_state.live_logs = []
+    st.session_state.signal_records = []
+
     add_log(f"Start radar for {selected_country}")
     progress = progress_box.progress(0, text="Starting radar...")
 
@@ -40,7 +47,7 @@ if st.button("Run radar"):
     discovered, entities, logs = discover_pages_for_country(selected_country, log_callback=add_log)
     progress.progress(25, text="Discovery done")
 
-    add_log("Step 2/4: Auto-approving strong pages")
+    add_log("Step 2/4: Auto-approving and rejecting")
     rows = db.get_pages(selected_country)
     approved_count = 0
     rejected_count = 0
@@ -102,8 +109,8 @@ if st.button("Run radar"):
         for e in entity_rows
     ]
 
+    add_log("Step 4/4: Building signal records")
     progress.progress(75, text="Building signal records")
-    add_log("Step 4/4: Building signals with quotes and sources")
 
     signal_records = build_signal_records_from_pages(
         pages_list,
@@ -111,7 +118,8 @@ if st.button("Run radar"):
         selected_country
     )
 
-    st.session_state["signal_records"] = signal_records
+    st.session_state.signal_records = signal_records
+
     progress.progress(100, text="Radar finished")
     status_box.success(
         f"Radar finished. Pages discovered: {len(discovered)} | Entities: {len(entities)} | Signal groups: {len(signal_records)}"
@@ -120,63 +128,119 @@ if st.button("Run radar"):
 st.subheader("Live action log")
 log_placeholder.code("\n".join(st.session_state.live_logs[-50:]) if st.session_state.live_logs else "No logs yet")
 
-st.subheader("Discovered pages")
-
-rows = db.get_pages(selected_country)
-if rows:
-    df = pd.DataFrame(
-        rows,
-        columns=[
-            "country",
-            "seed_name",
-            "seed_type",
-            "page_title",
-            "page_url",
-            "page_domain",
-            "relevance_score",
-            "reason",
-            "page_category",
-            "status",
-            "discovered_at",
-            "body_text",
-        ],
-    )
-    st.dataframe(df.drop(columns=["body_text"]), use_container_width=True)
-else:
-    st.info("No pages discovered yet.")
-
-st.subheader("Signals")
-
 signal_records = st.session_state.get("signal_records", [])
 
+# =========================
+# GENERAL
+# =========================
+st.subheader("🪖 Генерал")
+
 if not signal_records:
-    st.info("No signals yet. Click 'Run radar'.")
+    st.info("No radar results yet. Click 'Run radar'.")
 else:
+    summary_rows = []
     for rec in signal_records:
-        st.markdown(f"### ✈️ {rec['asset_name']}")
-        st.write(f"Country: {rec['country']}")
+        summary_rows.append({
+            "asset": rec["asset_name"],
+            "signals": len(rec["signals"]),
+            "source_pages": len(rec["page_urls"]),
+            "budget_owners": ", ".join(rec["budget_owners"][:3]),
+            "top_signal_types": ", ".join(sorted(rec["signal_type_counts"], key=rec["signal_type_counts"].get, reverse=True)[:3]),
+        })
 
-        if rec["actors"]["airport_operator"]:
-            st.write(f"Airport operator: {', '.join(rec['actors']['airport_operator'])}")
-        if rec["actors"]["municipality"]:
-            st.write(f"Municipality: {', '.join(rec['actors']['municipality'])}")
-        if rec["actors"]["regional_actor"]:
-            st.write(f"Regional actor: {', '.join(rec['actors']['regional_actor'])}")
-        if rec["actors"]["mining_company"]:
-            st.write(f"Mining company: {', '.join(rec['actors']['mining_company'])}")
-        if rec["actors"]["military_branch"]:
-            st.write(f"Military branch: {', '.join(rec['actors']['military_branch'])}")
-        if rec["budget_owners"]:
-            st.write(f"Who may control / allocate budget: {', '.join(rec['budget_owners'])}")
+    summary_df = pd.DataFrame(summary_rows)
+    st.dataframe(summary_df, use_container_width=True)
 
-        st.write("**Signals:**")
-        if rec["signals"]:
-            for sig in rec["signals"]:
-                st.write(f"- [{sig['type']}] {sig['quote']}")
-                st.write(f"  Source: {sig['source']}")
-        else:
-            st.write("No explicit signal quotes found.")
+# =========================
+# CAPTAIN
+# =========================
+st.subheader("🎖️ Капітан")
+
+if signal_records:
+    asset_options = [rec["asset_name"] for rec in signal_records]
+    selected_asset = st.selectbox("Choose asset", asset_options)
+
+    selected_record = next((r for r in signal_records if r["asset_name"] == selected_asset), None)
+
+    if selected_record:
+        st.markdown(f"### {selected_record['asset_name']}")
+        st.write(f"Country: {selected_record['country']}")
+
+        if selected_record["actors"]["airport_operator"]:
+            st.write(f"Airport operator: {', '.join(selected_record['actors']['airport_operator'])}")
+        if selected_record["actors"]["municipality"]:
+            st.write(f"Municipality: {', '.join(selected_record['actors']['municipality'])}")
+        if selected_record["actors"]["regional_actor"]:
+            st.write(f"Regional actor: {', '.join(selected_record['actors']['regional_actor'])}")
+        if selected_record["actors"]["mining_company"]:
+            st.write(f"Mining company: {', '.join(selected_record['actors']['mining_company'])}")
+        if selected_record["actors"]["military_branch"]:
+            st.write(f"Military branch: {', '.join(selected_record['actors']['military_branch'])}")
+        if selected_record["budget_owners"]:
+            st.write(f"Who may control / allocate budget: {', '.join(selected_record['budget_owners'])}")
+
+        st.write("**Short signal brief:**")
+        for sig in selected_record["short_signals"]:
+            st.write(f"- [{sig['type']}] {sig['quote']}")
+            st.caption(sig["source"])
+
+# =========================
+# SERGEANT
+# =========================
+st.subheader("🧱 Сержант")
+
+if signal_records:
+    if selected_record:
+        for idx, sig in enumerate(selected_record["signals"], start=1):
+            with st.expander(f"{idx}. {sig['type']}"):
+                st.write(sig["quote"])
+                st.write(f"Source: {sig['source']}")
 
         with st.expander("All source pages"):
-            for url in rec["page_urls"]:
+            for url in selected_record["page_urls"]:
                 st.write(url)
+
+# =========================
+# RAW TABLES
+# =========================
+with st.expander("Discovered pages", expanded=False):
+    rows = db.get_pages(selected_country)
+    if rows:
+        df = pd.DataFrame(
+            rows,
+            columns=[
+                "country",
+                "seed_name",
+                "seed_type",
+                "page_title",
+                "page_url",
+                "page_domain",
+                "relevance_score",
+                "reason",
+                "page_category",
+                "status",
+                "discovered_at",
+                "body_text",
+            ],
+        )
+        st.dataframe(df.drop(columns=["body_text"]), use_container_width=True)
+    else:
+        st.write("No pages discovered yet.")
+
+with st.expander("Discovered entities", expanded=False):
+    entity_rows = db.get_entities(selected_country)
+    if entity_rows:
+        entity_df = pd.DataFrame(
+            entity_rows,
+            columns=[
+                "country",
+                "source_url",
+                "entity_name",
+                "entity_type",
+                "rationale",
+                "discovered_at",
+            ],
+        )
+        st.dataframe(entity_df, use_container_width=True)
+    else:
+        st.write("No entities discovered yet.")
