@@ -4,13 +4,14 @@ import streamlit as st
 import db
 from country_seeds import COUNTRY_SEEDS
 from site_explorer import discover_pages_for_country
-from target_profile_builder import build_target_profiles_from_pages
+from signal_engine import build_signal_records_from_pages
+from config import AUTO_APPROVE_SCORE
 
 db.init_db()
 
 st.set_page_config(layout="wide", page_title="AeroIntel")
 st.title("🧠 AeroIntel")
-st.caption("Regional Source Hunter + Target Profiles + Contact Extraction")
+st.caption("Signals + quotes + sources only")
 
 countries = list(COUNTRY_SEEDS.keys())
 selected_country = st.selectbox("Country", countries)
@@ -19,144 +20,110 @@ with st.expander("Seed institutions for selected country", expanded=False):
     for seed in COUNTRY_SEEDS[selected_country]:
         st.write(f"- {seed['name']} | {seed['type']} | {seed['url']}")
 
+status_box = st.empty()
 progress_box = st.empty()
-log_box = st.expander("Live action log", expanded=False)
+log_placeholder = st.empty()
 
-col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+if "live_logs" not in st.session_state:
+    st.session_state.live_logs = []
 
-with col1:
-    if st.button("Discover pages and entities"):
-        progress = st.progress(0, text=f"Exploring {selected_country}...")
-        progress_box.info(f"Starting discovery for {selected_country}")
+def add_log(message: str):
+    st.session_state.live_logs.append(message)
+    log_placeholder.code("\n".join(st.session_state.live_logs[-50:]))
 
-        with log_box:
-            st.write("Fetching seed domains...")
+if st.button("Run radar"):
+    st.session_state.live_logs = []
+    add_log(f"Start radar for {selected_country}")
+    progress = progress_box.progress(0, text="Starting radar...")
 
-        discovered, entities, logs = discover_pages_for_country(selected_country)
+    add_log("Step 1/4: Discovering pages and entities")
+    discovered, entities, logs = discover_pages_for_country(selected_country, log_callback=add_log)
+    progress.progress(25, text="Discovery done")
 
-        progress.progress(100, text="Discovery finished")
-        progress_box.success(
-            f"Discovered {len(discovered)} pages and {len(entities)} entities for {selected_country}"
-        )
+    add_log("Step 2/4: Auto-approving strong pages")
+    rows = db.get_pages(selected_country)
+    approved_count = 0
+    rejected_count = 0
 
-        with log_box:
-            if logs:
-                for item in logs:
-                    st.json(item)
-            else:
-                st.write("No logs")
+    for row in rows:
+        page_url = row[4]
+        relevance_score = row[6]
+        page_category = row[8]
 
-        st.rerun()
+        if relevance_score >= AUTO_APPROVE_SCORE and page_category in [
+            "airport_page",
+            "airstrip_page",
+            "military_base_page",
+            "mining_airstrip_page",
+            "projects_page",
+            "airport_registry",
+            "municipality_airport_page",
+            "operator_page",
+            "procurement_page",
+        ]:
+            db.update_page_status(page_url, "approved")
+            approved_count += 1
+        elif page_category == "junk" or relevance_score < 20:
+            db.update_page_status(page_url, "rejected")
+            rejected_count += 1
 
-with col2:
-    if st.button("Auto-approve strong pages"):
-        rows = db.get_pages(selected_country)
-        approved_count = 0
+    add_log(f"Approved: {approved_count} | Rejected: {rejected_count}")
+    progress.progress(50, text="Auto-filtering done")
 
-        for row in rows:
-            page_url = row[4]
-            relevance_score = row[6]
-            page_category = row[8]
+    add_log("Step 3/4: Loading approved pages and entities")
+    rows = db.get_pages(selected_country)
+    entity_rows = db.get_entities(selected_country)
 
-            if relevance_score >= 45 and page_category in [
-                "airport_page",
-                "airstrip_page",
-                "military_base_page",
-                "mining_airstrip_page",
-                "projects_page",
-                "airport_registry",
-                "municipality_airport_page",
-                "operator_page",
-            ]:
-                db.update_page_status(page_url, "approved")
-                approved_count += 1
+    pages_list = [
+        {
+            "country": r[0],
+            "seed_name": r[1],
+            "seed_type": r[2],
+            "page_title": r[3],
+            "page_url": r[4],
+            "page_domain": r[5],
+            "relevance_score": r[6],
+            "reason": r[7],
+            "page_category": r[8],
+            "status": r[9],
+            "body_text": r[11],
+        }
+        for r in rows
+    ]
 
-        progress_box.success(f"Auto-approved {approved_count} pages")
-        st.rerun()
+    entities_list = [
+        {
+            "country": e[0],
+            "source_url": e[1],
+            "entity_name": e[2],
+            "entity_type": e[3],
+            "rationale": e[4],
+        }
+        for e in entity_rows
+    ]
 
-with col3:
-    if st.button("Reject junk pages"):
-        rows = db.get_pages(selected_country)
-        rejected_count = 0
+    progress.progress(75, text="Building signal records")
+    add_log("Step 4/4: Building signals with quotes and sources")
 
-        for row in rows:
-            page_url = row[4]
-            relevance_score = row[6]
-            page_category = row[8]
+    signal_records = build_signal_records_from_pages(
+        pages_list,
+        entities_list,
+        selected_country
+    )
 
-            if page_category == "junk" or relevance_score < 20:
-                db.update_page_status(page_url, "rejected")
-                rejected_count += 1
+    st.session_state["signal_records"] = signal_records
+    progress.progress(100, text="Radar finished")
+    status_box.success(
+        f"Radar finished. Pages discovered: {len(discovered)} | Entities: {len(entities)} | Signal groups: {len(signal_records)}"
+    )
 
-        progress_box.success(f"Rejected {rejected_count} pages")
-        st.rerun()
-
-with col4:
-    if st.button("Build target profiles"):
-        rows = db.get_pages(selected_country)
-        entity_rows = db.get_entities(selected_country)
-
-        pages_list = [
-            {
-                "country": r[0],
-                "seed_name": r[1],
-                "seed_type": r[2],
-                "page_title": r[3],
-                "page_url": r[4],
-                "page_domain": r[5],
-                "relevance_score": r[6],
-                "reason": r[7],
-                "page_category": r[8],
-                "status": r[9],
-                "body_text": r[11],
-            }
-            for r in rows
-        ]
-
-        entities_list = [
-            {
-                "country": e[0],
-                "source_url": e[1],
-                "entity_name": e[2],
-                "entity_type": e[3],
-                "rationale": e[4],
-            }
-            for e in entity_rows
-        ]
-
-        progress = st.progress(0, text="Building target profiles...")
-        progress_box.info("Building target profiles from approved pages...")
-
-        profiles = build_target_profiles_from_pages(
-            pages_list,
-            entities_list,
-            selected_country
-        )
-
-        progress.progress(100, text="Target profile build finished")
-        progress_box.success(f"Built {len(profiles)} target profiles")
-        st.rerun()
-
-extra_col1, extra_col2 = st.columns([1, 1])
-
-with extra_col1:
-    if st.button("Refresh tables"):
-        st.rerun()
-
-with extra_col2:
-    if st.button("Clear database"):
-        db.clear_pages()
-        progress_box.success("Database cleared")
-        st.rerun()
+st.subheader("Live action log")
+log_placeholder.code("\n".join(st.session_state.live_logs[-50:]) if st.session_state.live_logs else "No logs yet")
 
 st.subheader("Discovered pages")
 
 rows = db.get_pages(selected_country)
-
-if not rows:
-    st.info("No pages discovered yet.")
-    df = pd.DataFrame()
-else:
+if rows:
     df = pd.DataFrame(
         rows,
         columns=[
@@ -174,81 +141,42 @@ else:
             "body_text",
         ],
     )
-
-    st.dataframe(
-        df.drop(columns=["body_text"]),
-        use_container_width=True
-    )
-
-    st.subheader("Top candidate pages")
-
-    top_df = df.sort_values(
-        by=["relevance_score", "discovered_at"],
-        ascending=[False, False]
-    ).head(25)
-
-    for idx, row in top_df.iterrows():
-        st.markdown(f"### {row['page_title']}")
-        st.write(f"**Seed:** {row['seed_name']} | **Type:** {row['seed_type']}")
-        st.write(f"**Category:** {row['page_category']} | **Score:** {row['relevance_score']}")
-        st.write(f"**Domain:** {row['page_domain']}")
-        st.write(f"**Why:** {row['reason']}")
-        st.write(row["page_url"])
-        st.write(f"**Status:** {row['status']}")
-
-        c1, c2, c3 = st.columns([1, 1, 1])
-
-        with c1:
-            if st.button("Approve", key=f"approve_{selected_country}_{idx}"):
-                db.update_page_status(row["page_url"], "approved")
-                st.rerun()
-
-        with c2:
-            if st.button("Reject", key=f"reject_{selected_country}_{idx}"):
-                db.update_page_status(row["page_url"], "rejected")
-                st.rerun()
-
-        with c3:
-            if st.button("Keep new", key=f"new_{selected_country}_{idx}"):
-                db.update_page_status(row["page_url"], "new")
-                st.rerun()
-
-st.subheader("Discovered entities")
-
-entity_rows = db.get_entities(selected_country)
-
-if not entity_rows:
-    st.info("No entities discovered yet.")
+    st.dataframe(df.drop(columns=["body_text"]), use_container_width=True)
 else:
-    entity_df = pd.DataFrame(
-        entity_rows,
-        columns=[
-            "country",
-            "source_url",
-            "entity_name",
-            "entity_type",
-            "rationale",
-            "discovered_at",
-        ],
-    )
-    st.dataframe(entity_df, use_container_width=True)
+    st.info("No pages discovered yet.")
 
-st.subheader("Target Profiles")
+st.subheader("Signals")
 
-profiles = db.get_target_profiles(selected_country)
+signal_records = st.session_state.get("signal_records", [])
 
-if not profiles:
-    st.info("No target profiles yet.")
+if not signal_records:
+    st.info("No signals yet. Click 'Run radar'.")
 else:
-    for p in profiles:
-        st.markdown(f"### ✈️ {p[0]}")
-        st.write(f"Asset type: {p[2]}")
-        st.write(f"Owner: {p[3]}")
-        st.write(f"Operator: {p[4]}")
-        st.write(f"Regional actor: {p[5]}")
-        st.write(f"Mining company: {p[6]}")
-        st.write(f"Military branch: {p[7]}")
-        st.write(f"Email: {p[8]}")
-        st.write(f"Phone: {p[9]}")
-        st.write(f"Roles: {p[10]}")
-        st.write(p[11])
+    for rec in signal_records:
+        st.markdown(f"### ✈️ {rec['asset_name']}")
+        st.write(f"Country: {rec['country']}")
+
+        if rec["actors"]["airport_operator"]:
+            st.write(f"Airport operator: {', '.join(rec['actors']['airport_operator'])}")
+        if rec["actors"]["municipality"]:
+            st.write(f"Municipality: {', '.join(rec['actors']['municipality'])}")
+        if rec["actors"]["regional_actor"]:
+            st.write(f"Regional actor: {', '.join(rec['actors']['regional_actor'])}")
+        if rec["actors"]["mining_company"]:
+            st.write(f"Mining company: {', '.join(rec['actors']['mining_company'])}")
+        if rec["actors"]["military_branch"]:
+            st.write(f"Military branch: {', '.join(rec['actors']['military_branch'])}")
+        if rec["budget_owners"]:
+            st.write(f"Who may control / allocate budget: {', '.join(rec['budget_owners'])}")
+
+        st.write("**Signals:**")
+        if rec["signals"]:
+            for sig in rec["signals"]:
+                st.write(f"- [{sig['type']}] {sig['quote']}")
+                st.write(f"  Source: {sig['source']}")
+        else:
+            st.write("No explicit signal quotes found.")
+
+        with st.expander("All source pages"):
+            for url in rec["page_urls"]:
+                st.write(url)
