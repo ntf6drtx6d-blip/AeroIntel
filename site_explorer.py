@@ -80,36 +80,31 @@ def extract_page_title_and_text(html: str):
     return title, body_text
 
 
-def discover_pages_for_country(country: str):
+def discover_pages_for_country(country: str, log_callback=None):
     seeds = COUNTRY_SEEDS.get(country, [])
     discovered = []
     logs = []
     discovered_entities = []
+
+    def log(msg):
+        logs.append(msg)
+        if log_callback:
+            log_callback(msg)
 
     for seed in seeds:
         seed_name = seed["name"]
         seed_type = seed["type"]
         seed_url = seed["url"]
 
+        log(f"Fetching seed: {seed_name}")
+
         try:
             html = fetch_html(seed_url)
             if not html:
-                logs.append({
-                    "country": country,
-                    "seed": seed_name,
-                    "stage": "fetch_seed",
-                    "error": "Seed is not HTML or returned empty content",
-                    "url": seed_url,
-                })
+                log(f"Seed not HTML: {seed_url}")
                 continue
         except Exception as e:
-            logs.append({
-                "country": country,
-                "seed": seed_name,
-                "stage": "fetch_seed",
-                "error": str(e),
-                "url": seed_url,
-            })
+            log(f"Seed fetch failed: {seed_name} | {str(e)}")
             continue
 
         try:
@@ -131,13 +126,7 @@ def discover_pages_for_country(country: str):
         try:
             links = parse_links(seed_url, html)
         except Exception as e:
-            logs.append({
-                "country": country,
-                "seed": seed_name,
-                "stage": "parse_links",
-                "error": str(e),
-                "url": seed_url,
-            })
+            log(f"Parse links failed: {seed_name} | {str(e)}")
             continue
 
         checked = 0
@@ -148,13 +137,16 @@ def discover_pages_for_country(country: str):
 
             page_url = link["url"]
             if page_exists(page_url):
+                checked += 1
                 continue
 
             try:
                 page_html = fetch_html(page_url)
                 if not page_html:
+                    checked += 1
                     continue
             except Exception:
+                checked += 1
                 continue
 
             try:
@@ -165,13 +157,8 @@ def discover_pages_for_country(country: str):
                     body_text=body_text,
                 )
             except Exception as e:
-                logs.append({
-                    "country": country,
-                    "seed": seed_name,
-                    "stage": "score_page",
-                    "error": str(e),
-                    "url": page_url,
-                })
+                log(f"Score page failed: {page_url} | {str(e)}")
+                checked += 1
                 continue
 
             if score < MIN_RELEVANCE_SCORE:
