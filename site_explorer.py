@@ -74,8 +74,8 @@ def extract_page_title_and_text(html: str):
         title = normalize_whitespace(soup.title.string)
 
     body_text = normalize_whitespace(soup.get_text(" ", strip=True))
-    if len(body_text) > 6000:
-        body_text = body_text[:6000]
+    if len(body_text) > 8000:
+        body_text = body_text[:8000]
 
     return title, body_text
 
@@ -189,6 +189,7 @@ def discover_pages_for_country(country: str):
                 "reason": reason,
                 "page_category": category,
                 "status": "new",
+                "body_text": body_text,
             }
 
             save_page(record)
