@@ -2,51 +2,18 @@ from config import RELEVANT_KEYWORDS, NEGATIVE_KEYWORDS
 
 
 POSITIVE_URL_HINTS = [
-    "airport",
-    "airports",
-    "aerodrome",
-    "aerodromo",
-    "aeródromo",
-    "airfield",
-    "airstrip",
-    "base",
-    "air-base",
-    "military",
-    "infrastructure",
-    "project",
-    "projects",
-    "obra",
-    "obras",
-    "pista",
-    "modern",
-    "rehabilit",
-    "procurement",
-    "tender",
-    "licit",
-    "concession",
-    "operator",
-    "operators",
-    "regional",
-    "municipal",
-    "safety",
-    "night",
-    "mine",
-    "mining",
+    "airport", "airports", "aerodrome", "aerodromo", "aeródromo",
+    "airfield", "airstrip", "base", "military", "infrastructure",
+    "project", "projects", "obra", "obras", "pista", "modern",
+    "rehabilit", "procurement", "tender", "licit", "concession",
+    "operator", "operators", "regional", "municipal", "safety",
+    "night", "mine", "mining"
 ]
 
 NEGATIVE_URL_HINTS = [
-    "contact",
-    "about",
-    "search",
-    "transparency",
-    "departments",
-    "offices",
-    "service_channels",
-    "login",
-    "employee",
-    "faq",
-    "privacy",
-    "cookies",
+    "contact", "about", "search", "transparency", "departments",
+    "offices", "service_channels", "login", "employee", "faq",
+    "privacy", "cookies"
 ]
 
 
