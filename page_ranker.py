@@ -8,6 +8,10 @@ POSITIVE_URL_HINTS = [
     "aerodromo",
     "aeródromo",
     "airfield",
+    "airstrip",
+    "base",
+    "air-base",
+    "military",
     "infrastructure",
     "project",
     "projects",
@@ -26,6 +30,8 @@ POSITIVE_URL_HINTS = [
     "municipal",
     "safety",
     "night",
+    "mine",
+    "mining",
 ]
 
 NEGATIVE_URL_HINTS = [
@@ -46,7 +52,16 @@ NEGATIVE_URL_HINTS = [
 
 def classify_page_category(title: str, url: str, body_text: str) -> str:
     haystack = " ".join([title or "", url or "", body_text or ""]).lower()
+    lowered_url = (url or "").lower()
 
+    if "aeroporto-" in lowered_url or "aerodromo-" in lowered_url or "airport-" in lowered_url:
+        return "airport_page"
+    if "airstrip" in haystack:
+        return "airstrip_page"
+    if any(x in haystack for x in ["air base", "naval air station", "army aviation", "defence", "defense", "military base"]):
+        return "military_base_page"
+    if any(x in haystack for x in ["mining", "mine", "fifo", "site aviation"]):
+        return "mining_airstrip_page"
     if any(x in haystack for x in ["licit", "tender", "procurement", "bid"]):
         return "procurement_page"
     if any(x in haystack for x in ["project", "projects", "obra", "obras", "modern", "rehabilit", "expansion"]):
@@ -57,8 +72,6 @@ def classify_page_category(title: str, url: str, body_text: str) -> str:
         return "operator_page"
     if any(x in haystack for x in ["municipality", "municipal", "prefeitura", "alcaldía", "council"]):
         return "municipality_airport_page"
-    if any(x in haystack for x in ["mining", "mine", "mineracao", "mineração", "logistics"]):
-        return "mining_airstrip_related"
     if any(x in haystack for x in ["news", "noticias", "notícias", "media", "press"]):
         return "news_page"
     if any(x in haystack for x in ["contact", "about", "transparency", "search", "departments", "offices"]):
@@ -98,13 +111,16 @@ def score_page(title: str, url: str, body_text: str):
     category = classify_page_category(title, url, body_text)
 
     category_boosts = {
-        "procurement_page": 35,
-        "projects_page": 30,
-        "airport_registry": 28,
-        "operator_page": 22,
+        "airport_page": 35,
+        "airstrip_page": 30,
+        "military_base_page": 34,
+        "mining_airstrip_page": 34,
+        "procurement_page": 25,
+        "projects_page": 28,
+        "airport_registry": 24,
+        "operator_page": 18,
         "municipality_airport_page": 24,
-        "mining_airstrip_related": 22,
-        "news_page": 12,
+        "news_page": 8,
         "other": 0,
         "junk": -50,
     }
