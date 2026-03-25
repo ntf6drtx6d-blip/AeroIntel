@@ -7,13 +7,14 @@ POSITIVE_URL_HINTS = [
     "project", "projects", "obra", "obras", "pista", "modern",
     "rehabilit", "procurement", "tender", "licit", "concession",
     "operator", "operators", "regional", "municipal", "safety",
-    "night", "mine", "mining"
+    "night", "mine", "mining", "portfolio", "our-airports", "investments"
 ]
 
 NEGATIVE_URL_HINTS = [
-    "contact", "about", "search", "transparency", "departments",
-    "offices", "service_channels", "login", "employee", "faq",
-    "privacy", "cookies"
+    "contact", "about", "search", "transparency", "departments", "offices",
+    "service_channels", "login", "employee", "faq", "privacy", "cookies",
+    "join-us", "careers", "jobs", "working-at", "leadership", "sustainable",
+    "sustainability", "noise", "community", "equality", "training"
 ]
 
 
@@ -33,7 +34,7 @@ def classify_page_category(title: str, url: str, body_text: str) -> str:
         return "procurement_page"
     if any(x in haystack for x in ["project", "projects", "obra", "obras", "modern", "rehabilit", "expansion"]):
         return "projects_page"
-    if any(x in haystack for x in ["airport list", "airports", "aerodromes", "aerodromos", "aeródromos", "registry"]):
+    if any(x in haystack for x in ["airport list", "airports", "aerodromes", "aerodromos", "aeródromos", "registry", "portfolio", "our airports"]):
         return "airport_registry"
     if any(x in haystack for x in ["operator", "operators", "concession", "concessionaire"]):
         return "operator_page"
@@ -41,7 +42,7 @@ def classify_page_category(title: str, url: str, body_text: str) -> str:
         return "municipality_airport_page"
     if any(x in haystack for x in ["news", "noticias", "notícias", "media", "press"]):
         return "news_page"
-    if any(x in haystack for x in ["contact", "about", "transparency", "search", "departments", "offices"]):
+    if any(x in haystack for x in ["contact", "about", "transparency", "search", "departments", "offices", "careers", "join us", "working at", "leadership", "sustainable"]):
         return "junk"
 
     return "other"
@@ -72,7 +73,7 @@ def score_page(title: str, url: str, body_text: str):
 
     for hint in NEGATIVE_URL_HINTS:
         if hint in lowered_url:
-            score -= 25
+            score -= 30
             negatives.append(f"url:{hint}")
 
     category = classify_page_category(title, url, body_text)
@@ -89,7 +90,7 @@ def score_page(title: str, url: str, body_text: str):
         "municipality_airport_page": 24,
         "news_page": 8,
         "other": 0,
-        "junk": -50,
+        "junk": -60,
     }
 
     score += category_boosts.get(category, 0)
