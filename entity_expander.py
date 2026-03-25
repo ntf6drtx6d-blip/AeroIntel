@@ -36,7 +36,28 @@ ENTITY_PATTERNS = {
         r"\bDepartment of [A-Z][A-Za-z\- ]+",
         r"\bSecretaria de [A-ZÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇ][A-Za-zÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇáàâãéèêíìîóòôõúùûç\- ]+",
     ],
+    "military_branch": [
+        r"\bAir Force\b",
+        r"\bNavy\b",
+        r"\bArmy\b",
+        r"\bDefence\b",
+        r"\bDefense\b",
+        r"\bSpecial Operations\b",
+        r"\bNaval Air Station\b",
+    ],
 }
+
+
+BAD_ENTITY_WORDS = [
+    "telefone",
+    "phone",
+    "gestor",
+    "email",
+    "menu",
+    "careers",
+    "newsroom",
+    "cookie",
+]
 
 
 def extract_entities(body_text: str):
@@ -51,7 +72,13 @@ def extract_entities(body_text: str):
             matches = re.findall(pattern, text)
             for m in matches:
                 name = normalize_whitespace(m)
+                lowered = name.lower()
+
                 if len(name) < 4:
+                    continue
+                if len(name.split()) > 10:
+                    continue
+                if any(bad in lowered for bad in BAD_ENTITY_WORDS):
                     continue
 
                 found.append({
