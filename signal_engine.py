@@ -11,7 +11,7 @@ except ImportError:
             "obra", "obras", "construction", "works", "rehabilitation", "modernization", "ampliação", "expansion"
         ],
         "runway_signal": [
-            "pista", "runway", "airfield lighting", "aerodrome lighting", "lighting", "balizamento"
+            "pista", "runway", "airfield lighting", "aerodrome lighting", "lighting", "balizamento", "papi"
         ],
         "concession_signal": [
             "concession", "concessão", "concessionaire", "privatization", "privatização"
@@ -43,6 +43,29 @@ AIRPORT_PATTERNS = [
     r"Naval Air Station [A-Z][A-Za-z\- ]+",
 ]
 
+NOISE_PATTERNS = [
+    "acesso rápido",
+    "links externos",
+    "fale conosco",
+    "portal financeiro",
+    "video aulas",
+    "notícias",
+    "governo federal",
+    "cookies",
+    "privacy",
+    "copyright",
+    "todos os direitos reservados",
+    "main navigation",
+    "wrapper",
+    "service channels",
+    "contact us",
+]
+
+NOISE_REGEXES = [
+    r"^\d{4}(\s+\d{4})+$",              # years only
+    r"^[\d\-\(\)\s]{7,}$",              # numbers/phone-like only
+]
+
 
 def extract_asset_name(page_title: str, body_text: str, page_url: str):
     hay = " ".join([page_title or "", body_text or "", page_url or ""])
@@ -58,18 +81,66 @@ def extract_asset_name(page_title: str, body_text: str, page_url: str):
     return page_url
 
 
+def is_noise_sentence(sentence: str) -> bool:
+    s = normalize_whitespace(sentence)
+    if not s:
+        return True
+
+    lowered = s.lower()
+
+    if len(s) < 25:
+        return True
+
+    if len(s) > 450:
+        return True
+
+    if any(p in lowered for p in NOISE_PATTERNS):
+        return True
+
+    if sum(lowered.count(x) for x in ["aeroporto", "airport", "aeródromo"]) > 5:
+        return True
+
+    if s.count("|") > 2:
+        return True
+
+    if len(s.split()) > 70:
+        return True
+
+    for rgx in NOISE_REGEXES:
+        if re.match(rgx, s):
+            return True
+
+    return False
+
+
+def classify_sentence_type(sentence: str):
+    lowered = sentence.lower()
+    matched_types = []
+
+    for signal_type, keywords in SIGNAL_PATTERNS.items():
+        if any(keyword.lower() in lowered for keyword in keywords):
+            matched_types.append(signal_type)
+
+    return matched_types
+
+
 def extract_signal_quotes(body_text: str):
     sentences = split_sentences(body_text)
     found = []
 
-    for signal_type, keywords in SIGNAL_PATTERNS.items():
-        for sentence in sentences:
-            lowered = sentence.lower()
-            if any(keyword.lower() in lowered for keyword in keywords):
-                found.append({
-                    "type": signal_type,
-                    "quote": sentence,
-                })
+    for sentence in sentences:
+        if is_noise_sentence(sentence):
+            continue
+
+        matched_types = classify_sentence_type(sentence)
+        if not matched_types:
+            continue
+
+        for signal_type in matched_types:
+            found.append({
+                "type": signal_type,
+                "quote": sentence,
+            })
 
     dedup = {}
     for item in found:
@@ -93,6 +164,7 @@ def build_signal_records_from_pages(pages, entities, country):
             "military_branch": set(),
         },
         "budget_owners": set(),
+        "signal_type_counts": defaultdict(int),
     })
 
     approved_pages = [
@@ -128,6 +200,7 @@ def build_signal_records_from_pages(pages, entities, country):
                 "quote": q["quote"],
                 "source": p["page_url"],
             })
+            group["signal_type_counts"][q["type"]] += 1
 
         for e in entities:
             if e["source_url"] != p["page_url"]:
@@ -149,9 +222,36 @@ def build_signal_records_from_pages(pages, entities, country):
             item["actors"][k] = sorted(list(item["actors"][k]))
 
         item["budget_owners"] = sorted(list(item["budget_owners"]))
+        item["signal_type_counts"] = dict(item["signal_type_counts"])
+
+        # short signals for "captain" level
+        short_signals = []
+        seen_short = set()
+        for sig in item["signals"]:
+            short_quote = sig["quote"]
+            if len(short_quote) > 180:
+                short_quote = short_quote[:177] + "..."
+            key = (sig["type"], short_quote)
+            if key in seen_short:
+                continue
+            seen_short.add(key)
+            short_signals.append({
+                "type": sig["type"],
+                "quote": short_quote,
+                "source": sig["source"],
+            })
+
+        item["short_signals"] = short_signals[:8]
 
         if item["signals"] or any(item["actors"].values()):
             result.append(item)
 
-    result.sort(key=lambda x: len(x["signals"]), reverse=True)
+    result.sort(
+        key=lambda x: (
+            len(x["signals"]),
+            len(x["budget_owners"]),
+            len(x["page_urls"]),
+        ),
+        reverse=True
+    )
     return result
