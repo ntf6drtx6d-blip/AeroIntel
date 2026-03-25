@@ -47,16 +47,9 @@ ENTITY_PATTERNS = {
     ],
 }
 
-
 BAD_ENTITY_WORDS = [
-    "telefone",
-    "phone",
-    "gestor",
-    "email",
-    "menu",
-    "careers",
-    "newsroom",
-    "cookie",
+    "telefone", "phone", "gestor", "email", "menu", "careers",
+    "newsroom", "cookie"
 ]
 
 
