@@ -43,6 +43,16 @@ RELEVANT_KEYWORDS = [
     "airstrip",
     "aerodromo",
     "aeródromo",
+    "air base",
+    "naval air station",
+    "army aviation",
+    "defence",
+    "defense",
+    "military",
+    "mine",
+    "mining",
+    "fifo",
+    "logistics base",
 ]
 
 NEGATIVE_KEYWORDS = [
