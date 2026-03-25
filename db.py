@@ -50,26 +50,6 @@ def init_db():
         discovered_at TEXT
     )
     """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS target_profiles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        asset_name TEXT,
-        country TEXT,
-        asset_type TEXT,
-        owner TEXT,
-        operator TEXT,
-        regional_actor TEXT,
-        mining_company TEXT,
-        military_branch TEXT,
-        official_contact_email TEXT,
-        official_contact_phone TEXT,
-        contact_roles TEXT,
-        source_url TEXT,
-        confidence INTEGER,
-        created_at TEXT
-    )
-    """)
     conn.commit()
 
     ensure_column("discovered_pages", "page_category", "TEXT", "'other'")
@@ -142,34 +122,6 @@ def save_entity(record):
     conn.commit()
 
 
-def save_target_profile(record):
-    cursor.execute("""
-    INSERT INTO target_profiles (
-        asset_name, country, asset_type, owner, operator,
-        regional_actor, mining_company, military_branch,
-        official_contact_email, official_contact_phone, contact_roles,
-        source_url, confidence, created_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        record["asset_name"],
-        record["country"],
-        record["asset_type"],
-        record["owner"],
-        record["operator"],
-        record["regional_actor"],
-        record["mining_company"],
-        record["military_branch"],
-        record["official_contact_email"],
-        record["official_contact_phone"],
-        record["contact_roles"],
-        record["source_url"],
-        record["confidence"],
-        str(datetime.datetime.now()),
-    ))
-    conn.commit()
-
-
 def update_page_status(page_url, status):
     cursor.execute(
         "UPDATE discovered_pages SET status = ? WHERE page_url = ?",
@@ -214,29 +166,7 @@ def get_entities(country=None):
     return cursor.fetchall()
 
 
-def get_target_profiles(country=None):
-    if country:
-        cursor.execute("""
-            SELECT asset_name, country, asset_type, owner, operator, regional_actor,
-                   mining_company, military_branch, official_contact_email,
-                   official_contact_phone, contact_roles, source_url
-            FROM target_profiles
-            WHERE country = ?
-            ORDER BY created_at DESC
-        """, (country,))
-    else:
-        cursor.execute("""
-            SELECT asset_name, country, asset_type, owner, operator, regional_actor,
-                   mining_company, military_branch, official_contact_email,
-                   official_contact_phone, contact_roles, source_url
-            FROM target_profiles
-            ORDER BY created_at DESC
-        """)
-    return cursor.fetchall()
-
-
 def clear_pages():
     cursor.execute("DELETE FROM discovered_pages")
     cursor.execute("DELETE FROM discovered_entities")
-    cursor.execute("DELETE FROM target_profiles")
     conn.commit()
