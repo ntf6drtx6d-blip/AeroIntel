@@ -1,5 +1,6 @@
 from urllib.parse import urljoin, urlparse, urlunparse
 import re
+from datetime import datetime
 
 
 def normalize_whitespace(text: str) -> str:
@@ -52,26 +53,10 @@ def looks_like_junk_url(url: str) -> bool:
 
     lowered = url.lower()
     junk_parts = [
-        "#",
-        "search?",
-        "/search",
-        "/contact",
-        "/about",
-        "/offices",
-        "/departments",
-        "/transparency",
-        "/service_channels",
-        "/login",
-        "/signin",
-        "/signup",
-        "empregados",
-        "portal-footer",
-        "main-navigation",
-        "wrapper",
-        "govbr-busca-input",
-        "privacy",
-        "cookies",
-        "faq",
+        "#", "search?", "/search", "/contact", "/about", "/offices", "/departments",
+        "/transparency", "/service_channels", "/login", "/signin", "/signup",
+        "portal-footer", "main-navigation", "wrapper", "govbr-busca-input",
+        "privacy", "cookies", "faq",
     ]
     return any(part in lowered for part in junk_parts)
 
@@ -79,6 +64,21 @@ def looks_like_junk_url(url: str) -> bool:
 def split_sentences(text: str):
     if not text:
         return []
-
-    parts = re.split(r"(?<=[\.\!\?])\s+", text)
+    parts = re.split(r"(?<=[\.\!\?;])\s+", text)
     return [normalize_whitespace(p) for p in parts if normalize_whitespace(p)]
+
+
+def detected_days_ago(dt_str: str) -> str:
+    if not dt_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(dt_str.replace("Z", ""))
+        delta = datetime.now() - dt
+        days = delta.days
+        if days <= 0:
+            return "today"
+        if days == 1:
+            return "1 day ago"
+        return f"{days} days ago"
+    except Exception:
+        return dt_str
